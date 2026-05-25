@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Instructivo - Descargador Multimedia</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f3f3;
+      color: #111;
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid #b5b5b5;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      padding: 28px;
+    }
+    h1, h2 {
+      margin-top: 0;
+    }
+    h2 {
+      margin-top: 28px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 6px;
+    }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    ul, ol {
+      padding-left: 22px;
+    }
+    .note {
+      background: #eef6ff;
+      border: 1px solid #b9d7ff;
+      padding: 12px 14px;
+      margin: 16px 0;
+    }
+    .muted {
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Instructivo de uso</h1>
+    <p class="muted">Descargador Multimedia</p>
+
+    <div class="note">
+      Esta version del instructivo va en texto para que sea rapida y clara.
+      Si quieres una version con fotos, mandame capturas de las pantallas clave y la armamos.
+    </div>
+
+    <h2>1. YouTube</h2>
+    <ol>
+      <li>Pega un link de YouTube en el campo principal.</li>
+      <li>Elige <code>Video</code> o <code>Audio</code>.</li>
+      <li>Elige la calidad.</li>
+      <li>Selecciona la carpeta de salida si quieres cambiarla.</li>
+      <li>Pulsa <code>Descargar</code> para un solo link.</li>
+    </ol>
+
+    <h2>2. Lote de YouTube</h2>
+    <ol>
+      <li>Pega un link y usa <code>Agregar al lote</code>.</li>
+      <li>Repite con todos los links que quieras.</li>
+      <li>Tambien puedes usar <code>Cargar .txt</code> con un link por linea.</li>
+      <li>Pulsa <code>Descargar lote</code>.</li>
+      <li>Todo el lote usa el mismo formato y la misma calidad.</li>
+    </ol>
+
+    <h2>3. Imagenes</h2>
+    <ol>
+      <li>Elige la fuente: <code>Pexels</code> o <code>Flickr Public</code>.</li>
+      <li>Llena la lista con terminos o links.</li>
+      <li>Pulsa <code>Buscar imagenes</code> para agregar resultados al lote.</li>
+      <li>Si copias una imagen, puedes usar <code>Pegar ahora</code>.</li>
+      <li>En el lote puedes quitar una imagen o cambiarla con <code>Otra</code>.</li>
+      <li>Cuando el lote quede bien, pulsa <code>Descargar lote</code>.</li>
+    </ol>
+
+    <h2>4. Tecla global</h2>
+    <ol>
+      <li>Pulsa el boton <code>...</code>.</li>
+      <li>En <code>Tecla rapida global</code>, escribe una tecla o combinacion.</li>
+      <li>Ejemplos: <code>x</code>, <code>f8</code>, <code>ctrl+shift+x</code>.</li>
+      <li>Pulsa <code>Guardar</code>.</li>
+    </ol>
+
+    <h2>5. Toggles del lote</h2>
+    <ul>
+      <li>En <code>YouTube</code>, el toggle manda texto o links al lote de YouTube con la tecla global.</li>
+      <li>En <code>Imagenes</code>, el toggle manda imagenes o texto al lote/lista con la tecla global.</li>
+      <li>Si el toggle esta apagado, la tecla global no manda nada a ese lote.</li>
+      <li>La app intenta ignorar la tecla global cuando detecta que estas escribiendo en un campo de texto.</li>
+    </ul>
+
+    <h2>6. Botones utiles</h2>
+    <ul>
+      <li><code>Abrir carpeta</code>: abre la carpeta de salida actual.</li>
+      <li><code>Limpiar lote</code>: vacia la cola actual.</li>
+      <li><code>i</code>: abre este instructivo.</li>
+    </ul>
+
+    <h2>7. Sugerencias</h2>
+    <ul>
+      <li>Si vas a usar una sola letra como tecla global, prueba una que no uses mucho.</li>
+      <li>Si quieres algo mas seguro, usa una combinacion como <code>ctrl+shift+x</code>.</li>
+      <li>Si Pexels no encuentra algo, cambia a Flickr Public.</li>
+      <li>Si tienes <code>ffmpeg</code>, el resultado final suele salir mejor.</li>
+    </ul>
+  </div>
+</body>
+</html>

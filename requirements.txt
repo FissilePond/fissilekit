@@ -1,0 +1,4 @@
+pillow
+yt-dlp
+keyboard
+uiautomation
