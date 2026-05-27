@@ -2,119 +2,251 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Instructivo - Descargador Multimedia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Instructivo — FissileKit</title>
   <style>
+    :root {
+      --bg: #9dc4e4;
+      --face: #edf3fb;
+      --white: #ffffff;
+      --text: #1a3656;
+      --muted: #4a6280;
+      --accent: #5b9dd9;
+      --accent-dark: #3d7ab5;
+      --border: #b8c9db;
+      --card-shadow: 0 4px 18px rgba(26, 54, 86, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
-      background: #f3f3f3;
-      color: #111;
       margin: 0;
-      padding: 24px;
-      line-height: 1.5;
+      min-height: 100vh;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text);
+      background: linear-gradient(160deg, #b8d4ef 0%, var(--bg) 40%, #7eb0dc 100%);
+      padding: 32px 20px 48px;
     }
-    .wrap {
-      max-width: 900px;
+
+    .page {
+      max-width: 820px;
       margin: 0 auto;
-      background: #fff;
-      border: 1px solid #b5b5b5;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-      padding: 28px;
     }
-    h1, h2 {
-      margin-top: 0;
+
+    header {
+      background: linear-gradient(180deg, #fdfefe 0%, #d8ebfb 45%, #9cc4ea 100%);
+      border: 1px solid var(--border);
+      border-radius: 8px 8px 0 0;
+      padding: 28px 32px 24px;
+      box-shadow: var(--card-shadow);
     }
-    h2 {
-      margin-top: 28px;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 6px;
+
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
-    code {
-      background: #f0f0f0;
-      padding: 2px 6px;
+
+    header .tagline {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    header .badge {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 4px 12px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid var(--border);
       border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-dark);
     }
-    ul, ol {
-      padding-left: 22px;
+
+    main {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 8px 32px 32px;
+      box-shadow: var(--card-shadow);
     }
-    .note {
-      background: #eef6ff;
-      border: 1px solid #b9d7ff;
-      padding: 12px 14px;
-      margin: 16px 0;
+
+    section {
+      padding: 22px 0;
+      border-bottom: 1px solid #e8eef5;
     }
-    .muted {
-      color: #555;
+
+    section:last-of-type {
+      border-bottom: none;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h2 .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(180deg, #e7f0fb, #d0e4f8);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    ol, ul {
+      margin: 0;
+      padding-left: 1.35rem;
+      color: var(--text);
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    li:last-child {
+      margin-bottom: 0;
+    }
+
+    code, kbd {
+      font-family: Consolas, "Segoe UI", monospace;
+      font-size: 0.88em;
+      background: var(--face);
+      color: var(--accent-dark);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 7px;
+    }
+
+    .tip {
+      margin-top: 14px;
+      padding: 12px 16px;
+      background: linear-gradient(90deg, #f0f7ff, #fafcff);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+
+    .tip strong {
+      color: var(--text);
+    }
+
+    footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: rgba(26, 54, 86, 0.75);
+    }
+
+    footer a {
+      color: var(--accent-dark);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Instructivo de uso</h1>
-    <p class="muted">Descargador Multimedia</p>
+  <div class="page">
+    <header>
+      <h1>FissileKit</h1>
+      <p class="tagline">Guia de uso — descargas, lotes e imagenes</p>
+      <span class="badge">Toolkit multimedia</span>
+    </header>
 
-    <div class="note">
-      Esta version del instructivo va en texto para que sea rapida y clara.
-      Si quieres una version con fotos, mandame capturas de las pantallas clave y la armamos.
-    </div>
+    <main>
+      <section>
+        <h2><span class="num">1</span> YouTube — un link</h2>
+        <ol>
+          <li>Pega un enlace de YouTube en el campo principal.</li>
+          <li>Elige <code>Video</code> o <code>Audio</code> y la calidad.</li>
+          <li>Selecciona la carpeta de salida si quieres cambiarla.</li>
+          <li>Pulsa <code>Descargar</code>.</li>
+        </ol>
+      </section>
 
-    <h2>1. YouTube</h2>
-    <ol>
-      <li>Pega un link de YouTube en el campo principal.</li>
-      <li>Elige <code>Video</code> o <code>Audio</code>.</li>
-      <li>Elige la calidad.</li>
-      <li>Selecciona la carpeta de salida si quieres cambiarla.</li>
-      <li>Pulsa <code>Descargar</code> para un solo link.</li>
-    </ol>
+      <section>
+        <h2><span class="num">2</span> YouTube — lote</h2>
+        <ol>
+          <li>Agrega enlaces con <code>Agregar al lote</code> o <code>Cargar .txt</code> (un link por linea).</li>
+          <li>Activa el toggle si quieres usar la tecla global para mandar al lote.</li>
+          <li>Pulsa <code>Descargar lote</code> — mismo formato y calidad para todos.</li>
+        </ol>
+      </section>
 
-    <h2>2. Lote de YouTube</h2>
-    <ol>
-      <li>Pega un link y usa <code>Agregar al lote</code>.</li>
-      <li>Repite con todos los links que quieras.</li>
-      <li>Tambien puedes usar <code>Cargar .txt</code> con un link por linea.</li>
-      <li>Pulsa <code>Descargar lote</code>.</li>
-      <li>Todo el lote usa el mismo formato y la misma calidad.</li>
-    </ol>
+      <section>
+        <h2><span class="num">3</span> Imagenes</h2>
+        <ol>
+          <li>Elige fuente: <code>Pexels</code> (requiere API key) o <code>Flickr Public</code>.</li>
+          <li>Llena la lista con terminos o enlaces y pulsa <code>Buscar imagenes</code>.</li>
+          <li>Pega imagenes con <code>Pegar ahora</code> o la tecla global.</li>
+          <li>En el lote usa <code>Otra</code> o <code>Quitar</code> para ajustar resultados.</li>
+          <li>Pulsa <code>Descargar lote</code> cuando este listo.</li>
+        </ol>
+        <p class="tip"><strong>Pexels:</strong> configura tu API key en <code>Configuracion</code> (engranaje en la barra superior).</p>
+      </section>
 
-    <h2>3. Imagenes</h2>
-    <ol>
-      <li>Elige la fuente: <code>Pexels</code> o <code>Flickr Public</code>.</li>
-      <li>Llena la lista con terminos o links.</li>
-      <li>Pulsa <code>Buscar imagenes</code> para agregar resultados al lote.</li>
-      <li>Si copias una imagen, puedes usar <code>Pegar ahora</code>.</li>
-      <li>En el lote puedes quitar una imagen o cambiarla con <code>Otra</code>.</li>
-      <li>Cuando el lote quede bien, pulsa <code>Descargar lote</code>.</li>
-    </ol>
+      <section>
+        <h2><span class="num">4</span> Tecla global</h2>
+        <ol>
+          <li>Abre <code>Configuracion</code> en la barra superior.</li>
+          <li>En <code>Tecla rapida global</code>, escribe una tecla o combinacion.</li>
+          <li>Ejemplos: <code>x</code>, <code>f8</code>, <code>ctrl+shift+x</code>.</li>
+          <li>Pulsa <code>Guardar</code>.</li>
+        </ol>
+        <p class="tip">La tecla no se activa mientras escribes en un campo de texto (tampoco en otras apps compatibles).</p>
+      </section>
 
-    <h2>4. Tecla global</h2>
-    <ol>
-      <li>Pulsa el boton <code>...</code>.</li>
-      <li>En <code>Tecla rapida global</code>, escribe una tecla o combinacion.</li>
-      <li>Ejemplos: <code>x</code>, <code>f8</code>, <code>ctrl+shift+x</code>.</li>
-      <li>Pulsa <code>Guardar</code>.</li>
-    </ol>
+      <section>
+        <h2><span class="num">5</span> Toggles y atajos</h2>
+        <ul>
+          <li>Toggle en <strong>YouTube</strong>: la tecla global manda texto o links al lote.</li>
+          <li>Toggle en <strong>Imagenes</strong>: manda imagenes o texto al lote o a la lista.</li>
+          <li><code>Abrir carpeta</code> abre la carpeta de salida actual.</li>
+          <li><code>i</code> abre esta guia.</li>
+        </ul>
+      </section>
 
-    <h2>5. Toggles del lote</h2>
-    <ul>
-      <li>En <code>YouTube</code>, el toggle manda texto o links al lote de YouTube con la tecla global.</li>
-      <li>En <code>Imagenes</code>, el toggle manda imagenes o texto al lote/lista con la tecla global.</li>
-      <li>Si el toggle esta apagado, la tecla global no manda nada a ese lote.</li>
-      <li>La app intenta ignorar la tecla global cuando detecta que estas escribiendo en un campo de texto.</li>
-    </ul>
+      <section>
+        <h2><span class="num">6</span> Consejos</h2>
+        <ul>
+          <li>Para una sola letra como atajo, elige una que no uses al escribir.</li>
+          <li>Si Pexels no encuentra algo, prueba <code>Flickr Public</code>.</li>
+          <li>Con <code>ffmpeg</code> instalado, video y audio suelen salir en mejor calidad.</li>
+          <li>Tema e idioma se cambian en <code>Configuracion</code>.</li>
+        </ul>
+      </section>
+    </main>
 
-    <h2>6. Botones utiles</h2>
-    <ul>
-      <li><code>Abrir carpeta</code>: abre la carpeta de salida actual.</li>
-      <li><code>Limpiar lote</code>: vacia la cola actual.</li>
-      <li><code>i</code>: abre este instructivo.</li>
-    </ul>
-
-    <h2>7. Sugerencias</h2>
-    <ul>
-      <li>Si vas a usar una sola letra como tecla global, prueba una que no uses mucho.</li>
-      <li>Si quieres algo mas seguro, usa una combinacion como <code>ctrl+shift+x</code>.</li>
-      <li>Si Pexels no encuentra algo, cambia a Flickr Public.</li>
-      <li>Si tienes <code>ffmpeg</code>, el resultado final suele salir mejor.</li>
-    </ul>
+    <footer>
+      Desarrollado por <a href="https://www.fissilepond.com/" target="_blank" rel="noopener">FissilePond</a>
+    </footer>
   </div>
 </body>
 </html>

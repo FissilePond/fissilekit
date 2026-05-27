@@ -1,79 +1,107 @@
-# Descargador Multimedia
+# FissileKit
 
-Aplicacion de escritorio en Python con interfaz estilo Windows 7/Aero para descargar contenido de `YouTube` y armar lotes de `Imagenes`.
+Toolkit de escritorio para creadores: descarga videos y audio de YouTube, busca imagenes y arma lotes listos para editar.
 
-## Caracteristicas
+Desarrollado por [FissilePond](https://www.fissilepond.com/).
 
-- Descarga de `Video` o `Audio` desde un link de YouTube.
-- Descarga por lote de links de YouTube usando el mismo formato y calidad.
-- Lote final de imagenes combinando:
-  - resultados de busqueda;
-  - links directos;
-  - imagenes pegadas desde el portapapeles.
-- Busqueda de imagenes con `Pexels` o `Flickr Public`.
-- Tecla global configurable para mandar portapapeles al lote activo.
-- Bloqueo de captura mientras escribes en campos de texto, incluso en otras apps compatibles en Windows.
-- Configuracion local para:
-  - tema `oscuro` o `claro`;
-  - idioma `espanol` o `ingles`;
-  - API key de `Pexels`;
-  - tecla global;
-  - toggles de envio rapido por pestaña.
+Nota: Añadiré mas cosas en el futuro cercano, quiro que sea la herramienta definitiva para acompañar un editor de video. Hecho originalmente para mi uso personal
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+## Que hace
+
+- **YouTube:** descarga un link o un lote completo en video o audio, con calidad configurable.
+- **Imagenes:** busca con Pexels o Flickr Public, pega desde el portapapeles y arma un lote final editable.
+- **Lotes:** agrega, quita, reemplaza y descarga todo en una carpeta.
+- **Tecla global:** captura rapida del portapapeles sin estar pegando a mano todo el tiempo.
+- **Interfaz:** tema oscuro/claro e idioma espanol/ingles.
 
 ## Requisitos
 
-- Python `3.10` o superior
-- Dependencias del proyecto:
-  - `pillow`
-  - `yt-dlp`
-  - `keyboard`
-  - `uiautomation`
-- Opcional: `ffmpeg` para mejor salida final en `MP4` y conversion a `MP3`
+- Windows (recomendado; la tecla global y deteccion de escritura usan APIs de Windows)
+- Python 3.10 o superior
+- Dependencias: ver `requirements.txt`
+- Opcional: [ffmpeg](https://ffmpeg.org/) para MP4/MP3 con mejor calidad
 
 ## Instalacion
 
 ```powershell
+git clone https://github.com/FissilePond/fissilekit.git
+cd fissilekit
 py -m pip install -r requirements.txt
-```
-
-## Ejecutar
-
-```powershell
 py main.py
 ```
 
-Tambien puedes usar `iniciar.bat`.
+O usa `iniciar.bat` si ya tienes Python en el PATH.
+
+## Configuracion
+
+Abre **Configuracion** (icono de engranaje en la barra superior) para:
+
+| Opcion | Descripcion |
+|--------|-------------|
+| Tema | Oscuro (por defecto) o claro |
+| Idioma | Espanol o ingles |
+| API key de Pexels | Solo si usas busqueda en Pexels ([obtener clave gratis](https://www.pexels.com/api/)) |
+| Tecla global | Atajo para mandar portapapeles al lote activo |
+
+La configuracion se guarda en `settings.json` en la carpeta del programa. Ese archivo **no se sube al repositorio**; cada usuario usa el suyo. Puedes copiar `settings.json.example` como base.
 
 ## Uso rapido
 
 ### YouTube
 
-- Pega un link y pulsa `Descargar`.
-- O agrega varios links al cuadro de lote y usa `Descargar lote`.
-- Puedes cambiar entre `Video` y `Audio`, y elegir calidad antes de iniciar.
+1. Pega un link y pulsa **Descargar**, o agrega varios al lote y usa **Descargar lote**.
+2. Elige **Video** o **Audio** y la calidad.
+3. Los archivos se guardan en la carpeta de salida que elijas.
 
 ### Imagenes
 
-- Agrega texto a la lista principal o carga un `.txt` con una entrada por linea.
-- Busca con `Pexels` o `Flickr Public`.
-- Pega imagenes desde el portapapeles para agregarlas directo al lote final.
-- Revisa el lote, quita elementos o reemplaza resultados con el boton correspondiente.
+1. Agrega terminos o links a la lista (o carga un `.txt`).
+2. Pulsa **Buscar imagenes**, o pega imagenes directo al lote.
+3. Revisa el lote, quita o cambia con **Otra** / **Quitar**.
+4. **Descargar lote** guarda todo en tu carpeta.
 
-### Configuracion
+### Ayuda
 
-- El boton `...` abre ajustes.
-- Desde ahi puedes cambiar:
-  - API key de `Pexels`;
-  - tecla global;
-  - modo `oscuro` o `claro`;
-  - idioma `espanol` o `ingles`.
-- El tema por defecto es `oscuro`.
+El boton **i** abre `instructivo.html` con mas detalle.
 
-## Notas
+## API keys y privacidad
 
-- `Flickr Public` no requiere API key.
-- Si configuras una sola letra como tecla global, la app intenta ignorarla mientras detecta escritura en campos de texto.
-- El boton `i` abre `instructivo.html`.
-- La configuracion local se guarda en `settings.json`.
-- En modo `Video`, con `ffmpeg`, la app intenta entregar un `MP4` final de mejor calidad.
-- En modo `Audio`, con `ffmpeg`, la app convierte a `MP3` con la calidad elegida.
+- **No hay claves incluidas en este repositorio.** La API de Pexels la configuras tu en la app; se guarda solo en tu `settings.json` local.
+- **Flickr Public** no requiere API key.
+- No subas tu `settings.json` a Git ni lo compartas; ya esta en `.gitignore`.
+
+## Aviso legal
+
+Usa FissileKit solo con contenido que tengas derecho a descargar o usar. YouTube, Pexels, Flickr y otros servicios tienen sus propios terminos. El autor no se hace responsable del uso que le des a la herramienta.
+
+## Estructura del proyecto
+
+```
+fissilekit/
+  main.py              # Aplicacion principal
+  requirements.txt
+  instructivo.html     # Guia de uso
+  iniciar.bat          # Atajo para Windows
+  settings.json.example
+  fissilepondlogo.png
+```
+
+## Donaciones
+
+Si te sirve el proyecto: [Ko-fi — FissilePond](https://ko-fi.com/fissilepond)
+
+## Compilar ejecutable e instalador (Windows)
+
+Ver [BUILD.md](BUILD.md).
+
+1. `build_exe.bat` → genera `dist\FissileKit\FissileKit.exe`
+2. Instala [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+3. `build_installer.bat` → genera `dist\FissileKit-Setup-1.0.0.exe`
+
+## Licencia
+
+MIT — ver [LICENSE](LICENSE) en el repositorio.

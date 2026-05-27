@@ -5,6 +5,7 @@ import os
 import queue
 import re
 import shutil
+import sys
 import threading
 import urllib.error
 import urllib.parse
@@ -30,13 +31,29 @@ except ImportError:
     ui_auto = None
 
 
-APP_TITLE = "Descargador Multimedia"
-SETTINGS_FILE = Path(__file__).with_name("settings.json")
-HELP_FILE = Path(__file__).with_name("instructivo.html")
+APP_TITLE = "FissileKit"
+
+
+def _bundle_dir():
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)
+    return Path(__file__).resolve().parent
+
+
+def _writable_dir():
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+BUNDLE_DIR = _bundle_dir()
+WRITABLE_DIR = _writable_dir()
+SETTINGS_FILE = WRITABLE_DIR / "settings.json"
+HELP_FILE = BUNDLE_DIR / "instructivo.html"
 SITE_URL = "https://www.fissilepond.com/"
 DONATION_URL = "https://ko-fi.com/fissilepond"
-BRAND_LOGO_FILE = Path(__file__).with_name("fissilepondlogo.png")
-DONATION_LOGO_FILE = Path(__file__).with_name("Fissilepond logo png.png")
+BRAND_LOGO_FILE = BUNDLE_DIR / "fissilepondlogo.png"
+DONATION_LOGO_FILE = BUNDLE_DIR / "Fissilepond logo png.png"
 DEFAULT_YOUTUBE_FOLDER = Path.home() / "Downloads" / "YouTube"
 DEFAULT_IMAGE_FOLDER = Path.home() / "Downloads" / "Imagenes"
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
@@ -93,7 +110,7 @@ THEME_PALETTES = {
 
 TRANSLATIONS = {
     "es": {
-        "app_title": "Descargador Multimedia",
+        "app_title": "FissileKit",
         "list_placeholder": "Escribe o pega una entrada por linea. Puedes mezclar terminos y links.",
         "youtube_batch_placeholder": "Misma calidad y formato para todos.\nPega o agrega un link de YouTube por linea.",
         "ready": "Listo.",
@@ -235,7 +252,7 @@ TRANSLATIONS = {
         "replaced_image_log": "Se reemplazo la imagen de: {title}",
     },
     "en": {
-        "app_title": "Media Downloader",
+        "app_title": "FissileKit",
         "list_placeholder": "Write or paste one entry per line. You can mix search terms and links.",
         "youtube_batch_placeholder": "Same quality and format for all.\nPaste or add one YouTube link per line.",
         "ready": "Ready.",

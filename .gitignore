@@ -12,5 +12,9 @@ env/
 
 build/
 dist/
+*.spec.bak
 
+# PyInstaller
+
+# Local config (may contain Pexels API key)
 settings.json
