@@ -12,8 +12,8 @@ Nota: Añadiré mas cosas en el futuro cercano, quiro que sea la herramienta def
 
 ## Que hace
 
-- **YouTube:** descarga un link o un lote completo en video o audio, con calidad configurable.
-- **Imagenes:** busca con Pexels o Flickr Public, pega desde el portapapeles y arma un lote final editable.
+- **Videos:** descarga un link o un lote completo en video o audio, con calidad configurable.
+- **Imagenes:** lista unificada con preview, busqueda (Pexels/Flickr), portapapeles, formato y calidad al exportar.
 - **Lotes:** agrega, quita, reemplaza y descarga todo en una carpeta.
 - **Tecla global:** captura rapida del portapapeles sin estar pegando a mano todo el tiempo.
 - **Interfaz:** tema oscuro/claro e idioma espanol/ingles.
@@ -42,7 +42,7 @@ Abre **Configuracion** (icono de engranaje en la barra superior) para:
 
 | Opcion | Descripcion |
 |--------|-------------|
-| Tema | Oscuro (por defecto) o claro |
+| Tema | Claro (por defecto) o oscuro |
 | Idioma | Espanol o ingles |
 | API key de Pexels | Solo si usas busqueda en Pexels ([obtener clave gratis](https://www.pexels.com/api/)) |
 | Tecla global | Atajo para mandar portapapeles al lote activo |
@@ -51,18 +51,19 @@ La configuracion se guarda en `settings.json` en la carpeta del programa. Ese ar
 
 ## Uso rapido
 
-### YouTube
+### Videos
 
 1. Pega un link y pulsa **Descargar**, o agrega varios al lote y usa **Descargar lote**.
 2. Elige **Video** o **Audio** y la calidad.
-3. Los archivos se guardan en la carpeta de salida que elijas.
+3. Los archivos se guardan en `Downloads/FissileKit/Videos` (o la carpeta que elijas).
 
 ### Imagenes
 
 1. Agrega terminos o links a la lista (o carga un `.txt`).
-2. Pulsa **Buscar imagenes**, o pega imagenes directo al lote.
-3. Revisa el lote, quita o cambia con **Otra** / **Quitar**.
-4. **Descargar lote** guarda todo en tu carpeta.
+2. Pulsa **Buscar imagenes**, o pega imagenes directo al lote con la tecla global.
+3. Selecciona una foto en la lista para ver el preview; quita o cambia con **Quitar** / **Otra**.
+4. Elige formato y calidad en el panel lateral.
+5. **Descargar lote** guarda en `Downloads/FissileKit/Imagenes` (con conversion silenciosa si cambias formato).
 
 ### Ayuda
 

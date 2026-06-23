@@ -1,4 +1,4 @@
 pillow
-yt-dlp
+yt-dlp[default]>=2026.3.3
 keyboard
 uiautomation
