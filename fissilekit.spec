@@ -22,6 +22,10 @@ hiddenimports = [
     "PIL._tkinter_finder",
     "keyboard",
     "uiautomation",
+    "editor_ops",
+    "editor_icons",
+    "conversion_image_audio",
+    "numpy",
 ]
 
 for pkg in ("yt_dlp", "keyboard", "uiautomation"):

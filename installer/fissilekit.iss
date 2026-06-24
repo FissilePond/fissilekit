@@ -1,9 +1,8 @@
 ; Inno Setup script for FissileKit
-; Install Inno Setup 6: https://jrsoftware.org/isinfo.php
-; Build after: build_exe.bat
+; Requiere build_exe.bat antes de compilar este script.
 
 #define MyAppName "FissileKit"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "FissilePond"
 #define MyAppURL "https://www.fissilepond.com/"
 #define MyAppExeName "FissileKit.exe"
@@ -13,6 +12,7 @@
 AppId={{A8F4E2B1-9C3D-4F5A-B6E7-1D2C3F4A5B6C}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -20,14 +20,18 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+LicenseFile=..\LICENSE
 OutputDir=..\dist
 OutputBaseFilename=FissileKit-Setup-{#MyAppVersion}
+SetupIconFile=fissilekit.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -45,3 +49,6 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+Type: files; Name: "{app}\settings.json"

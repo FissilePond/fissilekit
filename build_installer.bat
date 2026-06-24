@@ -24,7 +24,7 @@ if errorlevel 1 goto :error
 
 echo.
 echo Instalador listo:
-echo   dist\FissileKit-Setup-1.0.0.exe
+echo   dist\FissileKit-Setup-1.1.0.exe
 goto :eof
 
 :error
