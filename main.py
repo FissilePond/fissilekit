@@ -14,11 +14,16 @@ import ctypes
 import webbrowser
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from ctypes import wintypes
 
 from PIL import Image, ImageGrab, ImageTk
 from yt_dlp import DownloadError, YoutubeDL
+
+import conversion
+import conversion_preview
+import editor
+import editor_ui
 
 try:
     import keyboard
@@ -57,6 +62,7 @@ DONATION_LOGO_FILE = BUNDLE_DIR / "Fissilepond logo png.png"
 DEFAULT_FISSILEKIT_ROOT = Path.home() / "Downloads" / "FissileKit"
 DEFAULT_YOUTUBE_FOLDER = DEFAULT_FISSILEKIT_ROOT / "Videos"
 DEFAULT_IMAGE_FOLDER = DEFAULT_FISSILEKIT_ROOT / "Imagenes"
+DEFAULT_CONVERSION_FOLDER = DEFAULT_FISSILEKIT_ROOT / "Conversiones"
 IMAGE_EXPORT_FORMATS = ("auto", "PNG", "JPEG", "WEBP")
 IMAGE_QUALITY_LEVELS = ("baja", "media", "alta")
 IMAGE_QUALITY_MAX_PX = {"baja": 640, "media": 1280, "alta": 2560}
@@ -136,13 +142,20 @@ TRANSLATIONS = {
         "hotkey_status_format": "Tecla: {hotkey}",
         "tab_youtube": "Videos",
         "tab_images": "Imagenes",
+        "tab_conversion": "Conversion",
+        "tab_editor": "Editor",
         "status_label": "Estado:",
-        "last_label": "Ultima:",
+        "last_label": "Ultimo:",
+        "last_click_hint": "Ver registro",
         "last_empty": "Ninguna accion reciente.",
         "paste": "Pegar",
         "send_batch": "Enviar",
+        "video_link_label": "Link del video",
         "batch_link_label": "Link de video",
         "batch_format_label": "Formato",
+        "mode_question": "¿Audio o Video?",
+        "mode_audio_short": "A",
+        "mode_video_short": "V",
         "change_folder": "Cambiar",
         "folder_prefix": "Carpeta:",
         "image_link_label": "Link de imagen o nombre",
@@ -156,27 +169,20 @@ TRANSLATIONS = {
         "log_group": "Registro",
         "brand_credit": "Desarrollado por FissilePond",
         "donations_link": "Donaciones",
-        "youtube_data_group": "Datos",
-        "youtube_options_group": "Opciones",
-        "youtube_single_group": "1. Un enlace",
-        "youtube_step_hint": "Elige formato y carpeta arriba. Un enlace: descarga directo. Varios: agregalos al lote.",
-        "images_step_hint": "Arma la lista, busca o pega imagenes, revisa el lote a la derecha y descarga abajo.",
-        "youtube_link_label": "Enlace",
-        "youtube_add_batch": "Al lote",
-        "youtube_batch_group": "2. Varios enlaces (opcional)",
-        "youtube_hotkey_toggle": "Tecla global envia al lote de esta pestana",
-        "load_txt": "Cargar .txt",
-        "clear_batch": "Limpiar lote",
-        "clear_list": "Limpiar lista",
-        "clear_image_batch": "Limpiar lote",
-        "download_batch": "Descargar lote",
+        "youtube_batch_group": "Lote",
+        "hotkey_toggle_short": "Tecla Global ({hotkey})",
+        "load_txt": "Cargar txt",
+        "add_txt": "Agregar txt",
+        "clear_batch": "Limpiar",
+        "clear_list": "Limpiar",
+        "download_batch": "Descargar",
         "format_group": "Formato",
         "quality_group": "Calidad",
         "quality_best": "Mejor disponible",
         "output_folder": "Carpeta de salida",
         "browse": "Buscar...",
         "open_folder": "Abrir carpeta",
-        "download": "Descargar enlace",
+        "download": "Descargar",
         "how_to_use": "Como usar",
         "youtube_how_to_use_text": "Uno: pega un link y descarga.\nVarios: agregalos al lote y descarga todo.",
         "search_group": "1. Lista de busqueda",
@@ -185,7 +191,102 @@ TRANSLATIONS = {
         "add_to_list": "Agregar termino o URL",
         "add": "Agregar",
         "current_list": "Terminos y links",
-        "search_images": "Buscar imagenes",
+        "search_images": "Buscar",
+        "conversion_coming_title": "Conversion",
+        "conversion_coming_text": "Trae un archivo, elige formato y obtiene el resultado.",
+        "conversion_source": "Traer Archivo",
+        "conversion_action": "Convertir",
+        "conversion_result": "Resultado",
+        "conversion_target_question": "¿A que lo quieres convertir?",
+        "conversion_images_group": "Imagenes",
+        "conversion_videos_group": "Videos",
+        "conversion_audios_group": "Audios",
+        "conversion_no_file": "Primero trae un archivo.",
+        "conversion_no_format": "Elige un formato de destino.",
+        "conversion_busy": "Convirtiendo...",
+        "conversion_done": "Conversion lista: {name}",
+        "conversion_result_empty": "Aun sin resultado.",
+        "conversion_pick_file": "Elegir archivo...",
+        "conversion_open_result": "Abrir archivo",
+        "conversion_source_hint": "Ningun archivo",
+        "conversion_unsupported": "Ese formato no esta disponible para este archivo.",
+        "conversion_need_ffmpeg": "Esta conversion requiere FFmpeg instalado y en el PATH.",
+        "conversion_pick_batch": "Elegir lote...",
+        "conversion_batch_hint": "{count} archivos",
+        "conversion_video_options": "Opciones de video (imagen)",
+        "conversion_video_duration": "Duracion (s)",
+        "conversion_video_quality": "Calidad",
+        "quality_baja": "Baja",
+        "quality_media": "Media",
+        "quality_alta": "Alta",
+        "conversion_batch_busy": "Convirtiendo {current}/{total}...",
+        "conversion_batch_done": "Lote listo: {count} archivo(s)",
+        "conversion_view_batch": "Ver lote",
+        "conversion_batch_title": "Lote de conversion",
+        "conversion_batch_empty": "No hay archivos en el lote.",
+        "conversion_batch_clear_all": "Limpiar todo",
+        "conversion_batch_cleared_log": "Se vacio el lote de conversion.",
+        "conversion_batch_removed_log": "Se quito del lote: {name}",
+        "close_button": "Cerrar",
+        "section_ready_conversion": "Trae un archivo, elige formato y convierte.",
+        "editor_coming_title": "Editor",
+        "editor_coming_text": "Historial, recorte, dibujo y exportacion.",
+        "editor_history": "Historial",
+        "editor_folder_label": "Carpeta",
+        "editor_refresh": "Actualizar",
+        "editor_group_images": "Imagenes ({count})",
+        "editor_group_videos": "Videos ({count})",
+        "editor_group_audio": "Audios ({count})",
+        "editor_click_add": "Click para agregar archivo",
+        "editor_tool_crop": "Recorte",
+        "editor_tool_rotate": "Rotar",
+        "editor_tool_resize": "Redimensionar",
+        "editor_tool_draw": "Dibujar",
+        "editor_tool_eraser": "Borrador",
+        "editor_tool_shapes": "Formas",
+        "editor_tool_text": "Texto",
+        "editor_tool_undo": "Deshacer",
+        "editor_tool_redo": "Rehacer",
+        "editor_resize_title": "Redimensionar",
+        "editor_resize_prompt": "Ancho x Alto (px)",
+        "editor_text_title": "Texto",
+        "editor_text_prompt": "Escribe el texto",
+        "editor_save": "Guardar",
+        "editor_saved": "Guardado: {name}",
+        "editor_loaded": "Abierto: {name}",
+        "editor_no_image": "Esta herramienta solo funciona con imagenes.",
+        "editor_invalid_size": "Tamano invalido. Usa numeros enteros.",
+        "section_ready_editor": "Abre un archivo o elige uno del historial.",
+        "editor_tool_exit": "Salir",
+        "editor_crop_mode": "Modo",
+        "editor_crop_handles": "Esquinas",
+        "editor_crop_drag": "Arrastrar",
+        "editor_crop_no_change": "El recorte cubre toda la imagen. Ajusta el area antes de aplicar.",
+        "editor_crop_mask_hint": "Recorte conserva el tamano del lienzo; fuera del area queda transparente.",
+        "editor_aspect_free": "Libre",
+        "editor_aspect_1_1": "1:1",
+        "editor_aspect_9_16": "9:16",
+        "editor_aspect_16_9": "16:9",
+        "editor_apply": "Aplicar",
+        "editor_rotate_degrees": "Grados",
+        "editor_resize_original": "Original",
+        "editor_resize_custom": "Personalizado",
+        "editor_draw_mode": "Modo",
+        "editor_draw_pencil": "Lapiz",
+        "editor_draw_bucket": "Cubeta",
+        "editor_rotate_go": "Girar",
+        "editor_draw_eraser": "Borrador",
+        "editor_opacity": "Opacidad",
+        "editor_size": "Tamaño",
+        "editor_color": "Color",
+        "editor_eraser_global": "Color total",
+        "editor_eraser_flood": "Zona",
+        "editor_eraser_magic": "Magico",
+        "editor_eraser_manual": "Manual",
+        "editor_eraser_heal": "Reparar",
+        "editor_tolerance": "Tolerancia",
+        "editor_shape_hint": "Arrastra para dibujar un rectangulo.",
+        "editor_text_hint": "Haz click en la imagen para colocar texto.",
         "quick_paste_group": "2. Agregar al lote",
         "paste_now": "Pegar ahora",
         "final_image_batch": "3. Lote final",
@@ -310,13 +411,20 @@ TRANSLATIONS = {
         "hotkey_status_format": "Key: {hotkey}",
         "tab_youtube": "Videos",
         "tab_images": "Images",
+        "tab_conversion": "Conversion",
+        "tab_editor": "Editor",
         "status_label": "Status:",
         "last_label": "Last:",
+        "last_click_hint": "View log",
         "last_empty": "No recent action.",
         "paste": "Paste",
         "send_batch": "Send",
+        "video_link_label": "Video link",
         "batch_link_label": "Video link",
         "batch_format_label": "Format",
+        "mode_question": "Audio or Video?",
+        "mode_audio_short": "A",
+        "mode_video_short": "V",
         "change_folder": "Change",
         "folder_prefix": "Folder:",
         "image_link_label": "Image link or name",
@@ -330,27 +438,20 @@ TRANSLATIONS = {
         "log_group": "Log",
         "brand_credit": "Built by FissilePond",
         "donations_link": "Donations",
-        "youtube_data_group": "Data",
-        "youtube_options_group": "Options",
-        "youtube_single_group": "1. Single link",
-        "youtube_step_hint": "Pick format and folder above. One link: download directly. Many: add them to the batch.",
-        "images_step_hint": "Build the list, search or paste images, review the batch on the right, then download below.",
-        "youtube_link_label": "Link",
-        "youtube_add_batch": "To batch",
-        "youtube_batch_group": "2. Multiple links (optional)",
-        "youtube_hotkey_toggle": "Global hotkey sends to this tab's batch",
-        "load_txt": "Load .txt",
-        "clear_batch": "Clear batch",
-        "clear_list": "Clear list",
-        "clear_image_batch": "Clear batch",
-        "download_batch": "Download batch",
+        "youtube_batch_group": "Batch",
+        "hotkey_toggle_short": "Global Key ({hotkey})",
+        "load_txt": "Load txt",
+        "add_txt": "Add txt",
+        "clear_batch": "Clear",
+        "clear_list": "Clear",
+        "download_batch": "Download",
         "format_group": "Format",
         "quality_group": "Quality",
         "quality_best": "Best available",
         "output_folder": "Output folder",
         "browse": "Browse...",
         "open_folder": "Open folder",
-        "download": "Download link",
+        "download": "Download",
         "how_to_use": "How to use",
         "youtube_how_to_use_text": "Single: paste a link and download.\nMultiple: add them to the batch and download all.",
         "search_group": "1. Search list",
@@ -359,7 +460,102 @@ TRANSLATIONS = {
         "add_to_list": "Add term or URL",
         "add": "Add",
         "current_list": "Terms and links",
-        "search_images": "Search images",
+        "search_images": "Search",
+        "conversion_coming_title": "Conversion",
+        "conversion_coming_text": "Pick a file, choose a format, and get the result.",
+        "conversion_source": "Bring File",
+        "conversion_action": "Convert",
+        "conversion_result": "Result",
+        "conversion_target_question": "What do you want to convert it to?",
+        "conversion_images_group": "Images",
+        "conversion_videos_group": "Videos",
+        "conversion_audios_group": "Audio",
+        "conversion_no_file": "Bring a file first.",
+        "conversion_no_format": "Choose a target format.",
+        "conversion_busy": "Converting...",
+        "conversion_done": "Conversion ready: {name}",
+        "conversion_result_empty": "No result yet.",
+        "conversion_pick_file": "Choose file...",
+        "conversion_open_result": "Open file",
+        "conversion_source_hint": "No file",
+        "conversion_unsupported": "That format is not available for this file.",
+        "conversion_need_ffmpeg": "This conversion requires FFmpeg installed and on PATH.",
+        "conversion_pick_batch": "Choose batch...",
+        "conversion_batch_hint": "{count} files",
+        "conversion_video_options": "Video options (image)",
+        "conversion_video_duration": "Duration (s)",
+        "conversion_video_quality": "Quality",
+        "quality_baja": "Low",
+        "quality_media": "Medium",
+        "quality_alta": "High",
+        "conversion_batch_busy": "Converting {current}/{total}...",
+        "conversion_batch_done": "Batch ready: {count} file(s)",
+        "conversion_view_batch": "View batch",
+        "conversion_batch_title": "Conversion batch",
+        "conversion_batch_empty": "No files in the batch.",
+        "conversion_batch_clear_all": "Clear all",
+        "conversion_batch_cleared_log": "The conversion batch was cleared.",
+        "conversion_batch_removed_log": "Removed from batch: {name}",
+        "close_button": "Close",
+        "section_ready_conversion": "Bring a file, pick a format, and convert.",
+        "editor_coming_title": "Editor",
+        "editor_coming_text": "History, crop, draw, and export tools.",
+        "editor_history": "History",
+        "editor_folder_label": "Folder",
+        "editor_refresh": "Refresh",
+        "editor_group_images": "Images ({count})",
+        "editor_group_videos": "Videos ({count})",
+        "editor_group_audio": "Audio ({count})",
+        "editor_click_add": "Click to add file",
+        "editor_tool_crop": "Crop",
+        "editor_tool_rotate": "Rotate",
+        "editor_tool_resize": "Resize",
+        "editor_tool_draw": "Draw",
+        "editor_tool_eraser": "Eraser",
+        "editor_tool_shapes": "Shapes",
+        "editor_tool_text": "Text",
+        "editor_tool_undo": "Undo",
+        "editor_tool_redo": "Redo",
+        "editor_resize_title": "Resize",
+        "editor_resize_prompt": "Width x Height (px)",
+        "editor_text_title": "Text",
+        "editor_text_prompt": "Enter text",
+        "editor_save": "Save",
+        "editor_saved": "Saved: {name}",
+        "editor_loaded": "Opened: {name}",
+        "editor_no_image": "This tool only works with images.",
+        "editor_invalid_size": "Invalid size. Use whole numbers.",
+        "section_ready_editor": "Open a file or pick one from history.",
+        "editor_tool_exit": "Exit",
+        "editor_crop_mode": "Mode",
+        "editor_crop_handles": "Handles",
+        "editor_crop_drag": "Drag",
+        "editor_crop_no_change": "The crop covers the full image. Adjust the area before applying.",
+        "editor_crop_mask_hint": "Crop keeps canvas size; outside the area becomes transparent.",
+        "editor_aspect_free": "Free",
+        "editor_aspect_1_1": "1:1",
+        "editor_aspect_9_16": "9:16",
+        "editor_aspect_16_9": "16:9",
+        "editor_apply": "Apply",
+        "editor_rotate_degrees": "Degrees",
+        "editor_resize_original": "Original",
+        "editor_resize_custom": "Custom",
+        "editor_draw_mode": "Mode",
+        "editor_draw_pencil": "Pencil",
+        "editor_draw_bucket": "Bucket",
+        "editor_rotate_go": "Rotate",
+        "editor_draw_eraser": "Eraser",
+        "editor_opacity": "Opacity",
+        "editor_size": "Size",
+        "editor_color": "Color",
+        "editor_eraser_global": "All color",
+        "editor_eraser_flood": "Region",
+        "editor_eraser_magic": "Magic",
+        "editor_eraser_manual": "Manual",
+        "editor_eraser_heal": "Repair",
+        "editor_tolerance": "Tolerance",
+        "editor_shape_hint": "Drag to draw a rectangle.",
+        "editor_text_hint": "Click on the image to place text.",
         "quick_paste_group": "2. Add to batch",
         "paste_now": "Paste now",
         "final_image_batch": "3. Final batch",
@@ -554,7 +750,7 @@ def format_bytes(value):
 
 
 def is_ffmpeg_available():
-    if shutil.which("ffmpeg"):
+    if conversion.find_ffmpeg():
         return True
     if getattr(sys, "frozen", False):
         for name in ("ffmpeg.exe", "ffmpeg"):
@@ -564,7 +760,7 @@ def is_ffmpeg_available():
 
 
 def ffmpeg_location():
-    found = shutil.which("ffmpeg")
+    found = conversion.find_ffmpeg()
     if found:
         return found
     if getattr(sys, "frozen", False):
@@ -688,14 +884,18 @@ class DownloaderApp(tk.Tk):
         self.batch_format_var = tk.StringVar(value="mp4")
         saved_video_folder = self._setting("video_output_folder", str(DEFAULT_YOUTUBE_FOLDER))
         saved_image_folder = self._setting("image_output_folder", str(DEFAULT_IMAGE_FOLDER))
+        saved_conversion_folder = self._setting("conversion_output_folder", str(DEFAULT_CONVERSION_FOLDER))
         self.output_var = tk.StringVar(value=saved_video_folder)
         self.image_output_var = tk.StringVar(value=saved_image_folder)
+        self.conversion_output_var = tk.StringVar(value=saved_conversion_folder)
         self.image_format_var = tk.StringVar(value=self._setting("image_export_format", "auto"))
         self.image_quality_var = tk.StringVar(value=self._setting("image_export_quality", "media"))
         self.pexels_key_var = tk.StringVar(value=self.settings.get("pexels_api_key", ""))
         self.search_source_var = tk.StringVar(value=saved_search_source)
         self.list_entry_var = tk.StringVar()
         self.youtube_batch_urls = []
+        self.selected_youtube_batch_index = None
+        self.log_window = None
         self.youtube_autopaste_var = tk.BooleanVar(
             value=bool(self._setting("youtube_autopaste_enabled", False))
         )
@@ -712,6 +912,23 @@ class DownloaderApp(tk.Tk):
         )
         self.image_preview_photo = None
         self.selected_image_index = None
+        self.conversion_source_path = None
+        self.conversion_batch_paths = []
+        self.conversion_batch_window = None
+        self.conversion_batch_listbox = None
+        self.conversion_result_path = None
+        self.conversion_target_format = tk.StringVar(value="")
+        self.conversion_video_duration_var = tk.StringVar(value="5")
+        self.conversion_video_quality_var = tk.StringVar(value="")
+        self.conversion_source_name_var = tk.StringVar(value=self._t("conversion_source_hint"))
+        self.conversion_result_var = tk.StringVar(value=self._t("conversion_result_empty"))
+        self.conversion_format_buttons = {}
+        self.conversion_source_preview_photo = None
+        self.conversion_result_preview_photo = None
+
+        saved_editor_folder = self._setting("editor_folder", str(DEFAULT_FISSILEKIT_ROOT))
+        self.editor_folder_var = tk.StringVar(value=saved_editor_folder)
+        self.editor_controller = None
 
         self.worker_queue = queue.Queue()
         self.active_thread = None
@@ -741,6 +958,11 @@ class DownloaderApp(tk.Tk):
         self.bind("<Return>", self._handle_enter)
         self.bind("<Control-v>", self._handle_global_paste)
         self.bind("<Control-V>", self._handle_global_paste)
+        self.bind("<Control-z>", self._editor_shortcut_undo)
+        self.bind("<Control-y>", self._editor_shortcut_redo)
+        self.bind("<Control-Z>", self._editor_shortcut_undo)
+        self.bind("<Control-Y>", self._editor_shortcut_redo)
+        self.bind("<Control-Shift-Z>", self._editor_shortcut_redo)
         self._apply_capture_hotkey(startup=True)
         self.after(100, self._process_queue)
 
@@ -817,19 +1039,10 @@ class DownloaderApp(tk.Tk):
         )
         self.settings_button.grid(row=0, column=4, sticky="e", padx=(0, 12), pady=6)
 
-        self.main_paned = tk.PanedWindow(
-            app,
-            orient=tk.VERTICAL,
-            sashwidth=5,
-            sashrelief=tk.FLAT,
-            bg=WIN_EDGE,
-            bd=0,
-            showhandle=True,
-            opaqueresize=True,
-        )
-        self.main_paned.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
+        app.grid_rowconfigure(1, weight=1)
 
-        body = tk.Frame(self.main_paned, bg=WIN_FACE)
+        body = tk.Frame(app, bg=WIN_FACE)
+        body.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
         body.grid_columnconfigure(0, weight=1)
         body.grid_rowconfigure(1, weight=1)
 
@@ -837,16 +1050,26 @@ class DownloaderApp(tk.Tk):
         tabs.grid(row=0, column=0, sticky="w", padx=12, pady=(12, 10))
 
         self.youtube_tab_button = self._make_button(
-            tabs, self._t("tab_youtube"), lambda: self._set_section("youtube"), width=14
+            tabs, self._t("tab_youtube"), lambda: self._set_section("youtube"), width=12
         )
         self.youtube_tab_button.grid(row=0, column=0, padx=(0, 6))
 
         self.images_tab_button = self._make_button(
-            tabs, self._t("tab_images"), lambda: self._set_section("imagenes"), width=14
+            tabs, self._t("tab_images"), lambda: self._set_section("imagenes"), width=12
         )
-        self.images_tab_button.grid(row=0, column=1)
+        self.images_tab_button.grid(row=0, column=1, padx=(0, 6))
 
-        self.content = tk.Frame(body, bg=WIN_WHITE, bd=1, relief="solid", highlightbackground=WIN_EDGE)
+        self.conversion_tab_button = self._make_button(
+            tabs, self._t("tab_conversion"), lambda: self._set_section("conversion"), width=12
+        )
+        self.conversion_tab_button.grid(row=0, column=2, padx=(0, 6))
+
+        self.editor_tab_button = self._make_button(
+            tabs, self._t("tab_editor"), lambda: self._set_section("editor"), width=12
+        )
+        self.editor_tab_button.grid(row=0, column=3)
+
+        self.content = tk.Frame(body, bg=WIN_FACE, bd=1, relief="solid", highlightbackground=WIN_EDGE)
         self.content.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(0, weight=1)
@@ -857,157 +1080,24 @@ class DownloaderApp(tk.Tk):
         self.images_frame = self._build_images_panel(self.content)
         self.images_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-        bottom = tk.Frame(self.main_paned, bg=WIN_STATUS_TOP, bd=1, relief="solid", highlightbackground=WIN_EDGE)
-        self.main_paned.add(body, minsize=260)
-        self.main_paned.add(bottom, minsize=168)
+        self.conversion_frame = self._build_conversion_panel(self.content)
+        self.conversion_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-        bottom.grid_columnconfigure(0, weight=1)
-        bottom.grid_rowconfigure(4, weight=1)
+        self.editor_controller = editor_ui.EditorController(self)
+        self.editor_frame = self.editor_controller.build_panel(self.content)
+        self.editor_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-        status_top = tk.Frame(bottom, bg=WIN_STATUS_TOP)
-        status_top.grid(row=0, column=0, sticky="ew", padx=10, pady=(8, 2))
-        status_top.grid_columnconfigure(1, weight=1)
-
-        tk.Label(
-            status_top,
-            text=self._t("status_label"),
-            bg=WIN_STATUS_TOP,
-            fg=WIN_DARK,
-            font=FONT_CAPTION,
-        ).grid(row=0, column=0, sticky="w")
-
-        tk.Label(
-            status_top,
-            textvariable=self.status_var,
-            bg=WIN_WHITE,
-            fg=WIN_BLACK,
-            relief="solid",
-            bd=1,
-            highlightbackground=WIN_EDGE,
-            font=FONT_NORMAL,
-            anchor="w",
-            padx=6,
-            pady=2,
-        ).grid(row=0, column=1, sticky="ew", padx=(8, 8))
-
-        self.status_hotkey_label = tk.Label(
-            status_top,
-            textvariable=self.capture_status_var,
-            bg=WIN_STATUS_TOP,
-            fg=WIN_DARK,
-            font=FONT_CAPTION,
-            anchor="e",
-        )
-        self.status_hotkey_label.grid(row=0, column=2, sticky="e")
-
-        self.detail_label = tk.Label(
-            bottom,
-            textvariable=self.detail_var,
-            bg=WIN_STATUS_TOP,
-            fg=WIN_DARK,
-            anchor="w",
-            justify="left",
-            font=FONT_CAPTION,
-            wraplength=700,
-        )
-        self.detail_label.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 2))
-
-        self.batch_summary_label = tk.Label(
-            bottom,
-            textvariable=self.batch_summary_var,
-            bg=WIN_STATUS_TOP,
-            fg=WIN_BLACK,
-            anchor="w",
-            font=FONT_CAPTION,
-            wraplength=700,
-        )
-        self.batch_summary_label.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 2))
-
-        last_row = tk.Frame(bottom, bg=WIN_STATUS_TOP)
-        last_row.grid(row=3, column=0, sticky="ew", padx=10, pady=(0, 4))
-        tk.Label(
-            last_row,
-            text=self._t("last_label"),
-            bg=WIN_STATUS_TOP,
-            fg=WIN_DARK,
-            font=FONT_CAPTION,
-        ).grid(row=0, column=0, sticky="w")
-        tk.Label(
-            last_row,
-            textvariable=self.last_action_var,
-            bg=WIN_STATUS_TOP,
-            fg=WIN_BLACK,
-            anchor="w",
-            font=FONT_CAPTION,
-            wraplength=700,
-        ).grid(row=0, column=1, sticky="ew", padx=(8, 0))
-        last_row.grid_columnconfigure(1, weight=1)
-
-        log_group = self._make_group(bottom, self._t("log_group"))
-        log_group.grid(row=4, column=0, sticky="nsew", padx=10, pady=(4, 8))
-        log_group.grid_columnconfigure(0, weight=1)
-        log_group.grid_rowconfigure(0, weight=1)
-
-        log_frame = tk.Frame(log_group, bg=WIN_FACE)
-        log_frame.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
-        log_frame.grid_columnconfigure(0, weight=1)
-        log_frame.grid_rowconfigure(0, weight=1)
-
-        self.log_scrollbar = tk.Scrollbar(log_frame, orient="vertical")
-        self.log_scrollbar.grid(row=0, column=1, sticky="ns")
-
-        self.log_box = tk.Text(
-            log_frame,
-            height=3,
-            bg=WIN_WHITE,
-            fg=WIN_BLACK,
-            relief="solid",
-            bd=1,
-            highlightbackground=WIN_EDGE,
-            highlightthickness=1,
-            wrap="word",
-            font=FONT_SMALL,
-            insertbackground=WIN_BLACK,
-            yscrollcommand=self.log_scrollbar.set,
-        )
-        self.log_box.grid(row=0, column=0, sticky="nsew")
-        self.log_scrollbar.configure(command=self.log_box.yview)
+        self.log_box = tk.Text(self, height=1, width=1)
         self.log_box.insert("end", f"{self._t('welcome_log')}\n")
         self.log_box.configure(state="disabled")
 
-        self.progress_canvas = tk.Canvas(bottom, width=1, height=1, highlightthickness=0, bd=0)
+        self.progress_canvas = tk.Canvas(self, width=1, height=1, highlightthickness=0, bd=0)
         self.progress_fill = self.progress_canvas.create_rectangle(
             0, 0, 0, 1, fill=WIN_BLACK, outline=""
         )
         self.progress_text = self.progress_canvas.create_text(
             0, 0, text="0%", anchor="w", fill=WIN_BLACK, font=FONT_SMALL
         )
-
-        self.bind("<Configure>", self._on_root_configure, add="+")
-        self.after(150, self._position_main_paned)
-
-    def _on_root_configure(self, event):
-        if event.widget is not self:
-            return
-        wrap = max(event.width - 96, 240)
-        for label in (
-            getattr(self, "detail_label", None),
-            getattr(self, "batch_summary_label", None),
-        ):
-            if label is not None and label.winfo_exists():
-                label.configure(wraplength=wrap)
-
-    def _position_main_paned(self):
-        paned = getattr(self, "main_paned", None)
-        if paned is None or not paned.winfo_exists():
-            return
-        try:
-            paned.update_idletasks()
-            height = paned.winfo_height()
-            if height > 220:
-                paned.sash_place(0, 0, max(height - 190, 260))
-        except tk.TclError:
-            pass
 
     def _make_title_link(self, parent, text, url):
         label = tk.Label(
@@ -1073,7 +1163,7 @@ class DownloaderApp(tk.Tk):
         return tk.Entry(
             parent,
             textvariable=textvariable,
-            bg=WIN_WHITE,
+            bg=WIN_LIGHT,
             fg=WIN_BLACK,
             insertbackground=WIN_BLACK,
             relief="solid",
@@ -1096,7 +1186,7 @@ class DownloaderApp(tk.Tk):
             highlightbackground=WIN_EDGE,
             font=FONT_NORMAL,
         )
-        menu["menu"].configure(bg=WIN_WHITE, fg=WIN_BLACK, font=FONT_NORMAL)
+        menu["menu"].configure(bg=WIN_LIGHT, fg=WIN_BLACK, font=FONT_NORMAL)
         return menu
 
     def _make_text_box(self, parent, height):
@@ -1266,7 +1356,7 @@ class DownloaderApp(tk.Tk):
         # while preserving batch data, logs, and the selected section.
         active_section = self.section_var.get()
         snapshot = {
-            "youtube_batch_urls": list(self.youtube_batch_urls),
+            "youtube_batch_urls": self._clone_youtube_batch_items(self.youtube_batch_urls),
             "image_items": self._clone_image_items(self.image_items),
             "log": self._snapshot_text_widget(getattr(self, "log_box", None)),
         }
@@ -1278,19 +1368,23 @@ class DownloaderApp(tk.Tk):
         self.ui_photo_refs.clear()
         self.image_preview_photo = None
         self.selected_image_index = None
+        self.selected_youtube_batch_index = None
+        self.log_window = None
 
         self.title(self._app_title())
         self.configure(bg=WIN_DESKTOP)
         self._build_ui()
-        self.youtube_batch_urls = list(snapshot["youtube_batch_urls"])
+        self.youtube_batch_urls = self._clone_youtube_batch_items(snapshot["youtube_batch_urls"])
         self.image_items = self._clone_image_items(snapshot["image_items"])
         self._refresh_youtube_batch_listbox()
         self._refresh_image_listbox()
         self._restore_log_text(snapshot["log"])
         self._update_quality_options(self.mode_var.get())
+        self._refresh_mode_toggle()
         self._set_section(active_section)
         self._refresh_youtube_batch_summary()
         self._apply_search_source_state()
+        self._refresh_hotkey_toggle_labels()
 
     def _hex_to_rgb(self, color):
         color = color.lstrip("#")
@@ -1383,6 +1477,161 @@ class DownloaderApp(tk.Tk):
     def _set_last_action(self, text):
         self.last_action_var.set(text or self._t("last_empty"))
 
+    def _open_log_window(self):
+        if self.log_window is not None and self.log_window.winfo_exists():
+            self.log_window.lift()
+            self.log_window.focus_force()
+            return
+
+        window = tk.Toplevel(self)
+        window.title(self._t("log_group"))
+        window.configure(bg=WIN_FACE)
+        window.geometry("640x360")
+        window.minsize(420, 240)
+        window.transient(self)
+
+        frame = tk.Frame(window, bg=WIN_FACE)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(0, weight=1)
+
+        scrollbar = tk.Scrollbar(frame, orient="vertical")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        log_view = tk.Text(
+            frame,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            relief="solid",
+            bd=1,
+            highlightbackground=WIN_EDGE,
+            wrap="word",
+            font=FONT_SMALL,
+            yscrollcommand=scrollbar.set,
+        )
+        log_view.grid(row=0, column=0, sticky="nsew")
+        scrollbar.configure(command=log_view.yview)
+
+        content = self.log_box.get("1.0", "end").strip()
+        log_view.insert("end", content or f"{self._t('welcome_log')}\n")
+        log_view.configure(state="disabled")
+
+        def on_close():
+            self.log_window = None
+            window.destroy()
+
+        window.protocol("WM_DELETE_WINDOW", on_close)
+        self.log_window = window
+
+    def _default_youtube_batch_item(self, url):
+        quality_label = self.quality_var.get() or self._t("quality_best")
+        return {
+            "url": url,
+            "format": "mp4",
+            "quality_label": quality_label,
+            "quality_value": self.current_quality_map.get(quality_label, "best"),
+        }
+
+    def _normalize_youtube_batch_item(self, item):
+        if isinstance(item, dict):
+            return dict(item)
+        return self._default_youtube_batch_item(str(item))
+
+    def _clone_youtube_batch_items(self, items):
+        return [self._normalize_youtube_batch_item(item) for item in items]
+
+    def _youtube_batch_item_url(self, item):
+        return self._normalize_youtube_batch_item(item)["url"]
+
+    def _save_youtube_batch_item_options(self):
+        index = self.selected_youtube_batch_index
+        if index is None or index >= len(self.youtube_batch_urls):
+            return
+        item = self.youtube_batch_urls[index]
+        item["format"] = self.batch_format_var.get() or "mp4"
+        quality_label = self.batch_quality_var.get() or self._t("quality_best")
+        item["quality_label"] = quality_label
+        item["quality_value"] = self.current_quality_map.get(quality_label, "best")
+
+    def _load_youtube_batch_item_options(self):
+        index = self.selected_youtube_batch_index
+        if index is None or index >= len(self.youtube_batch_urls):
+            self.batch_format_var.set("mp4")
+            self.batch_quality_var.set(self._t("quality_best"))
+            return
+        item = self.youtube_batch_urls[index]
+        self.batch_format_var.set(item.get("format", "mp4"))
+        self.batch_quality_var.set(item.get("quality_label", self._t("quality_best")))
+
+    def _update_youtube_batch_side_controls(self):
+        if not hasattr(self, "batch_format_menu"):
+            return
+        enabled = (
+            self.selected_youtube_batch_index is not None
+            and not self._is_busy()
+        )
+        state = "normal" if enabled else "disabled"
+        self.batch_format_menu.configure(state=state)
+        self.batch_quality_menu.configure(state=state)
+
+    def _on_youtube_batch_select(self, _event=None):
+        self._save_youtube_batch_item_options()
+        selection = self.youtube_batch_listbox.curselection()
+        if not selection:
+            self.selected_youtube_batch_index = None
+        else:
+            self.selected_youtube_batch_index = selection[0]
+        self._load_youtube_batch_item_options()
+        self._update_youtube_batch_side_controls()
+
+    def _on_youtube_batch_option_change(self, _value=None):
+        self._save_youtube_batch_item_options()
+
+    def _set_mode(self, mode):
+        self.mode_var.set(mode)
+        self._update_quality_options(mode)
+        self._refresh_mode_toggle()
+
+    def _refresh_mode_toggle(self):
+        if not hasattr(self, "mode_toggle_buttons"):
+            return
+        current = self.mode_var.get()
+        for mode, button in self.mode_toggle_buttons.items():
+            active = current == mode
+            button.configure(
+                bg=WIN_TAB_ACTIVE if active else WIN_BUTTON,
+                fg=WIN_ACCENT_TEXT if active else WIN_BLACK,
+                activebackground=WIN_TAB_ACTIVE if active else WIN_BUTTON_ACTIVE,
+                activeforeground=WIN_ACCENT_TEXT if active else WIN_BLACK,
+            )
+
+    def _make_mode_toggle(self, parent):
+        frame = tk.Frame(parent, bg=WIN_FACE, bd=1, relief="solid", highlightbackground=WIN_EDGE)
+        self.mode_toggle_buttons = {}
+        for column, (mode, label) in enumerate(
+            (("Audio", self._t("mode_audio_short")), ("Video", self._t("mode_video_short")))
+        ):
+            button = tk.Button(
+                frame,
+                text=label,
+                command=lambda value=mode: self._set_mode(value),
+                width=3,
+                bg=WIN_BUTTON,
+                fg=WIN_BLACK,
+                activebackground=WIN_BUTTON_ACTIVE,
+                activeforeground=WIN_BLACK,
+                relief="flat",
+                bd=0,
+                font=FONT_BOLD,
+                padx=10,
+                pady=2,
+                cursor="hand2",
+            )
+            button.grid(row=0, column=column, sticky="nsew")
+            self.mode_toggle_buttons[mode] = button
+        self._refresh_mode_toggle()
+        return frame
+
     def _make_listbox(self, parent, height=8):
         frame = tk.Frame(parent, bg=WIN_FACE)
         frame.grid_columnconfigure(0, weight=1)
@@ -1390,7 +1639,7 @@ class DownloaderApp(tk.Tk):
         listbox = tk.Listbox(
             frame,
             height=height,
-            bg=WIN_WHITE,
+            bg=WIN_LIGHT,
             fg=WIN_BLACK,
             selectbackground=WIN_TAB_ACTIVE,
             selectforeground=WIN_ACCENT_TEXT,
@@ -1406,6 +1655,15 @@ class DownloaderApp(tk.Tk):
         listbox.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
         return listbox, scrollbar, frame
+
+    def _make_field_label(self, parent, text, row=0, column=0, columnspan=1):
+        tk.Label(
+            parent,
+            text=text,
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=row, column=column, columnspan=columnspan, sticky="w", pady=(0, 4))
 
     def _paste_into_var(self, variable):
         try:
@@ -1423,13 +1681,15 @@ class DownloaderApp(tk.Tk):
             return
         selected = self.youtube_batch_listbox.curselection()
         self.youtube_batch_listbox.delete(0, "end")
-        for index, url in enumerate(self.youtube_batch_urls, start=1):
-            label = self._t("video_item_label", index=index)
-            display = url if len(url) <= 72 else f"{url[:69]}..."
-            self.youtube_batch_listbox.insert("end", f"{label}: {display}")
+        for index, _item in enumerate(self.youtube_batch_urls, start=1):
+            self.youtube_batch_listbox.insert("end", self._t("video_item_label", index=index))
         if selected and selected[0] < self.youtube_batch_listbox.size():
             self.youtube_batch_listbox.selection_set(selected[0])
-        self._refresh_youtube_batch_summary()
+            self.selected_youtube_batch_index = selected[0]
+        else:
+            self.selected_youtube_batch_index = None
+        self._load_youtube_batch_item_options()
+        self._update_youtube_batch_side_controls()
 
     def _sync_batch_quality_menu(self):
         if not hasattr(self, "batch_quality_menu"):
@@ -1446,19 +1706,61 @@ class DownloaderApp(tk.Tk):
         if self.batch_quality_var.get() not in labels:
             self.batch_quality_var.set(self.quality_var.get() or labels[0])
 
+    def _hotkey_toggle_label(self):
+        hotkey = self._format_hotkey_label(self.capture_hotkey_var.get().strip())
+        if not hotkey:
+            hotkey = "D"
+        return self._t("hotkey_toggle_short", hotkey=hotkey)
+
+    def _refresh_hotkey_toggle_labels(self):
+        label = self._hotkey_toggle_label()
+        if hasattr(self, "images_autopaste_toggle"):
+            self.images_autopaste_toggle.configure(text=label)
+
+    def _make_placeholder_card(self, parent, title, subtitle=""):
+        card = tk.Frame(
+            parent,
+            bg=WIN_LIGHT,
+            bd=1,
+            relief="solid",
+            highlightbackground=WIN_EDGE,
+            width=160,
+            height=120,
+        )
+        card.grid_propagate(False)
+        tk.Label(
+            card,
+            text=title,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            font=FONT_BOLD,
+            wraplength=140,
+        ).pack(expand=True)
+        if subtitle:
+            tk.Label(
+                card,
+                text=subtitle,
+                bg=WIN_LIGHT,
+                fg=WIN_DARK,
+                font=FONT_SMALL,
+                wraplength=140,
+            ).pack(pady=(0, 8))
+        return card
+
     def _build_youtube_panel(self, parent):
         frame = tk.Frame(parent, bg=WIN_FACE)
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(1, weight=1)
 
-        single = tk.Frame(frame, bg=WIN_FACE)
-        single.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        single.grid_columnconfigure(0, weight=1)
+        top = tk.Frame(frame, bg=WIN_FACE)
+        top.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        top.grid_columnconfigure(0, weight=1)
 
-        url_row = tk.Frame(single, bg=WIN_FACE)
-        url_row.grid(row=0, column=0, sticky="ew")
+        self._make_field_label(top, self._t("video_link_label"), row=0, column=0)
+
+        url_row = tk.Frame(top, bg=WIN_FACE)
+        url_row.grid(row=1, column=0, sticky="ew")
         url_row.grid_columnconfigure(0, weight=1)
-
         self.url_entry = self._make_entry(url_row, self.url_var)
         self.url_entry.grid(row=0, column=0, sticky="ew")
         self.youtube_paste_button = self._make_button(
@@ -1466,76 +1768,47 @@ class DownloaderApp(tk.Tk):
         )
         self.youtube_paste_button.grid(row=0, column=1, padx=(6, 0))
 
-        mode_row = tk.Frame(single, bg=WIN_FACE)
-        mode_row.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        opts_row = tk.Frame(top, bg=WIN_FACE)
+        opts_row.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        opts_row.grid_columnconfigure(5, weight=1)
 
         tk.Label(
-            mode_row,
-            text=self._t("format_group"),
+            opts_row,
+            text=self._t("mode_question"),
             bg=WIN_FACE,
             fg=WIN_DARK,
             font=FONT_CAPTION,
         ).grid(row=0, column=0, sticky="w", padx=(0, 8))
 
-        self.video_radio = tk.Radiobutton(
-            mode_row,
-            text="Video",
-            variable=self.mode_var,
-            value="Video",
-            bg=WIN_FACE,
-            fg=WIN_BLACK,
-            activebackground=WIN_FACE,
-            activeforeground=WIN_BLACK,
-            selectcolor=WIN_WHITE,
-            command=lambda: self._update_quality_options("Video"),
-            font=FONT_NORMAL,
-        )
-        self.video_radio.grid(row=0, column=1, sticky="w")
-
-        self.audio_radio = tk.Radiobutton(
-            mode_row,
-            text="Audio",
-            variable=self.mode_var,
-            value="Audio",
-            bg=WIN_FACE,
-            fg=WIN_BLACK,
-            activebackground=WIN_FACE,
-            activeforeground=WIN_BLACK,
-            selectcolor=WIN_WHITE,
-            command=lambda: self._update_quality_options("Audio"),
-            font=FONT_NORMAL,
-        )
-        self.audio_radio.grid(row=0, column=2, sticky="w", padx=(10, 0))
+        self.mode_toggle = self._make_mode_toggle(opts_row)
+        self.mode_toggle.grid(row=0, column=1, sticky="w")
 
         tk.Label(
-            mode_row,
+            opts_row,
             text=self._t("quality_group"),
             bg=WIN_FACE,
             fg=WIN_DARK,
             font=FONT_CAPTION,
-        ).grid(row=0, column=3, sticky="w", padx=(18, 8))
+        ).grid(row=0, column=2, sticky="w", padx=(18, 8))
 
         self.quality_menu = self._make_option_menu(
-            mode_row, self.quality_var, [self._t("quality_best")]
+            opts_row, self.quality_var, [self._t("quality_best")]
         )
-        self.quality_menu.grid(row=0, column=4, sticky="w")
+        self.quality_menu.grid(row=0, column=3, sticky="w")
 
         self.download_button = self._make_button(
-            mode_row, self._t("download"), self._start_youtube_download, width=14, primary=True
+            opts_row, self._t("download"), self._start_youtube_download, width=14, primary=True
         )
         self.download_button.grid(row=0, column=5, padx=(18, 0), sticky="e")
-        mode_row.grid_columnconfigure(6, weight=1)
 
         batch = self._make_group(frame, self._t("youtube_batch_group"))
         batch.grid(row=1, column=0, sticky="nsew")
-        batch.grid_columnconfigure(0, weight=3)
-        batch.grid_columnconfigure(1, weight=1)
+        batch.grid_columnconfigure(0, weight=1)
         batch.grid_rowconfigure(2, weight=1)
 
         batch_input = tk.Frame(batch, bg=WIN_FACE)
         batch_input.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 4))
         batch_input.grid_columnconfigure(0, weight=1)
-
         self.batch_url_entry = self._make_entry(batch_input, self.batch_url_var)
         self.batch_url_entry.grid(row=0, column=0, sticky="ew")
         self.youtube_add_button = self._make_button(
@@ -1543,33 +1816,23 @@ class DownloaderApp(tk.Tk):
         )
         self.youtube_add_button.grid(row=0, column=1, padx=(6, 0))
 
-        self.youtube_autopaste_toggle = tk.Checkbutton(
-            batch,
-            text=self._t("youtube_hotkey_toggle"),
-            variable=self.youtube_autopaste_var,
-            command=lambda: self._toggle_autopaste("youtube"),
-            bg=WIN_FACE,
-            fg=WIN_BLACK,
-            activebackground=WIN_FACE,
-            activeforeground=WIN_BLACK,
-            selectcolor=WIN_WHITE,
-            anchor="w",
-            font=FONT_CAPTION,
-        )
-        self.youtube_autopaste_toggle.grid(row=1, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 4))
+        list_side = tk.Frame(batch, bg=WIN_FACE)
+        list_side.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=8, pady=(4, 8))
+        list_side.grid_columnconfigure(0, weight=1)
+        list_side.grid_rowconfigure(0, weight=1)
 
-        list_wrap = tk.Frame(batch, bg=WIN_FACE)
-        list_wrap.grid(row=2, column=0, sticky="nsew", padx=(8, 4), pady=(0, 8))
+        list_wrap = tk.Frame(list_side, bg=WIN_FACE)
+        list_wrap.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         list_wrap.grid_columnconfigure(0, weight=1)
         list_wrap.grid_rowconfigure(0, weight=1)
-        self.youtube_batch_listbox, self.youtube_batch_scrollbar, _list_frame = self._make_listbox(
-            list_wrap, height=10
+        self.youtube_batch_listbox, self.youtube_batch_scrollbar, list_frame = self._make_listbox(
+            list_wrap, height=9
         )
-        _list_frame.grid(row=0, column=0, sticky="nsew")
+        list_frame.grid(row=0, column=0, sticky="nsew")
+        self.youtube_batch_listbox.bind("<<ListboxSelect>>", self._on_youtube_batch_select)
 
-        batch_side = tk.Frame(batch, bg=WIN_FACE)
-        batch_side.grid(row=2, column=1, sticky="ns", padx=(4, 8), pady=(0, 8))
-
+        batch_side = tk.Frame(list_side, bg=WIN_FACE)
+        batch_side.grid(row=0, column=1, sticky="ns")
         tk.Label(
             batch_side,
             text=self._t("batch_format_label"),
@@ -1578,10 +1841,12 @@ class DownloaderApp(tk.Tk):
             font=FONT_CAPTION,
         ).grid(row=0, column=0, sticky="w", pady=(0, 4))
         self.batch_format_menu = self._make_option_menu(
-            batch_side, self.batch_format_var, YOUTUBE_BATCH_FORMATS
+            batch_side,
+            self.batch_format_var,
+            YOUTUBE_BATCH_FORMATS,
+            command=self._on_youtube_batch_option_change,
         )
         self.batch_format_menu.grid(row=1, column=0, sticky="ew", pady=(0, 10))
-
         tk.Label(
             batch_side,
             text=self._t("quality_group"),
@@ -1590,18 +1855,36 @@ class DownloaderApp(tk.Tk):
             font=FONT_CAPTION,
         ).grid(row=2, column=0, sticky="w", pady=(0, 4))
         self.batch_quality_menu = self._make_option_menu(
-            batch_side, self.batch_quality_var, [self._t("quality_best")]
+            batch_side,
+            self.batch_quality_var,
+            [self._t("quality_best")],
+            command=self._on_youtube_batch_option_change,
         )
         self.batch_quality_menu.grid(row=3, column=0, sticky="ew")
 
-        youtube_batch_actions = tk.Frame(batch, bg=WIN_FACE)
-        youtube_batch_actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
-        youtube_batch_actions.grid_columnconfigure(0, weight=1)
+        batch_actions = tk.Frame(batch, bg=WIN_FACE)
+        batch_actions.grid(row=3, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
+        batch_actions.grid_columnconfigure(2, weight=1)
+        self.youtube_load_file_button = self._make_button(
+            batch_actions, self._t("load_txt"), self._load_youtube_links_from_file, width=12
+        )
+        self.youtube_load_file_button.grid(row=0, column=0, sticky="w")
+        self.youtube_clear_button = self._make_button(
+            batch_actions, self._t("clear_batch"), self._clear_youtube_batch, width=12
+        )
+        self.youtube_clear_button.grid(row=0, column=1, padx=(6, 0), sticky="w")
+        self.youtube_batch_download_button = self._make_button(
+            batch_actions,
+            self._t("download_batch"),
+            self._start_youtube_batch_download,
+            width=16,
+            primary=True,
+        )
+        self.youtube_batch_download_button.grid(row=0, column=3, padx=(6, 0), sticky="e")
 
-        folder_row = tk.Frame(batch, bg=WIN_FACE)
-        folder_row.grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
+        folder_row = tk.Frame(frame, bg=WIN_FACE)
+        folder_row.grid(row=2, column=0, sticky="ew", pady=(4, 0))
         folder_row.grid_columnconfigure(1, weight=1)
-
         tk.Label(
             folder_row,
             text=self._t("folder_prefix"),
@@ -1615,30 +1898,63 @@ class DownloaderApp(tk.Tk):
             folder_row, self._t("change_folder"), lambda: self._pick_folder("youtube"), width=12
         )
         self.browse_button.grid(row=0, column=2, padx=(6, 0))
-        self.youtube_open_folder_button = self._make_button(
-            folder_row, self._t("open_folder"), self._open_output_folder, width=12
-        )
-        self.youtube_open_folder_button.grid(row=0, column=3, padx=(6, 0))
 
-        self.youtube_load_file_button = self._make_button(
-            youtube_batch_actions, self._t("load_txt"), self._load_youtube_links_from_file, width=12
+        status_row = tk.Frame(frame, bg=WIN_FACE)
+        status_row.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        status_row.grid_columnconfigure(1, weight=1)
+
+        tk.Label(
+            status_row,
+            text=self._t("status_label"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+
+        self.youtube_status_label = tk.Label(
+            status_row,
+            textvariable=self.status_var,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            relief="solid",
+            bd=1,
+            highlightbackground=WIN_EDGE,
+            font=FONT_NORMAL,
+            anchor="w",
+            padx=6,
+            pady=2,
         )
-        self.youtube_load_file_button.grid(row=0, column=1, padx=(6, 0))
-        self.youtube_clear_button = self._make_button(
-            youtube_batch_actions, self._t("clear_batch"), self._clear_youtube_batch, width=12
+        self.youtube_status_label.grid(row=0, column=1, sticky="ew")
+
+        last_wrap = tk.Frame(status_row, bg=WIN_FACE)
+        last_wrap.grid(row=0, column=2, sticky="e", padx=(12, 0))
+        tk.Label(
+            last_wrap,
+            text=self._t("last_label"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.youtube_last_action_label = tk.Label(
+            last_wrap,
+            textvariable=self.last_action_var,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            relief="solid",
+            bd=1,
+            highlightbackground=WIN_EDGE,
+            font=FONT_NORMAL,
+            anchor="w",
+            padx=6,
+            pady=2,
+            cursor="hand2",
         )
-        self.youtube_clear_button.grid(row=0, column=2, padx=(6, 0))
-        self.youtube_batch_download_button = self._make_button(
-            youtube_batch_actions,
-            self._t("download_batch"),
-            self._start_youtube_batch_download,
-            width=16,
-            primary=True,
-        )
-        self.youtube_batch_download_button.grid(row=0, column=3, padx=(6, 0))
+        self.youtube_last_action_label.grid(row=0, column=1, sticky="ew")
+        self.youtube_last_action_label.bind("<Button-1>", lambda _e: self._open_log_window())
 
         self._sync_batch_quality_menu()
         self._refresh_youtube_batch_listbox()
+        self._update_youtube_batch_side_controls()
         return frame
 
     def _image_format_menu_values(self):
@@ -1676,10 +1992,7 @@ class DownloaderApp(tk.Tk):
         selected = self.image_listbox.curselection()
         self.image_listbox.delete(0, "end")
         for index, item in enumerate(self.image_items, start=1):
-            label = self._t("photo_item_label", index=index)
-            title = item.get("title") or item.get("query") or f"Item {index}"
-            display = title if len(title) <= 48 else f"{title[:45]}..."
-            self.image_listbox.insert("end", f"{label}: {display}")
+            self.image_listbox.insert("end", self._t("photo_item_label", index=index))
         if selected and selected[0] < self.image_listbox.size():
             self.image_listbox.selection_set(selected[0])
             self._on_image_list_select()
@@ -1689,7 +2002,15 @@ class DownloaderApp(tk.Tk):
         else:
             self.selected_image_index = None
             self._update_image_preview_panel(None)
-        self._refresh_batch_summary()
+        self._update_image_export_controls()
+
+    def _update_image_export_controls(self):
+        if not hasattr(self, "image_format_menu"):
+            return
+        has_selection = self.selected_image_index is not None and not self._is_busy()
+        state = "normal" if has_selection else "disabled"
+        self._configure_widget_state(self.image_format_menu, state)
+        self._configure_widget_state(self.image_quality_menu, state)
 
     def _on_image_list_select(self, _event=None):
         if not hasattr(self, "image_listbox"):
@@ -1698,6 +2019,7 @@ class DownloaderApp(tk.Tk):
         if not selection:
             self.selected_image_index = None
             self._update_image_preview_panel(None)
+            self._update_image_export_controls()
             return
         index = selection[0]
         if index >= len(self.image_items):
@@ -1711,6 +2033,7 @@ class DownloaderApp(tk.Tk):
                 args=(item["id"], item["download_url"]),
                 daemon=True,
             ).start()
+        self._update_image_export_controls()
 
     def _load_preview_for_item(self, item_id, url):
         try:
@@ -1725,8 +2048,6 @@ class DownloaderApp(tk.Tk):
         if item is None:
             self.image_preview_label.configure(image="", text=self._t("preview_label"))
             self.image_preview_photo = None
-            if hasattr(self, "image_replace_button"):
-                self.image_replace_button.configure(state="disabled")
             return
         preview = item.get("preview_image")
         if preview is None and item.get("image_data") is not None:
@@ -1741,51 +2062,42 @@ class DownloaderApp(tk.Tk):
         self.image_preview_photo = photo
         self.ui_photo_refs.append(photo)
         self.image_preview_label.configure(image=photo, text="")
-        if hasattr(self, "image_replace_button"):
-            can_replace = item.get("kind") in ("pexels", "flickr")
-            self.image_replace_button.configure(state="normal" if can_replace else "disabled")
 
     def _build_images_panel(self, parent):
         frame = tk.Frame(parent, bg=WIN_FACE)
-        frame.grid_columnconfigure(0, weight=2)
-        frame.grid_columnconfigure(1, weight=1)
+        frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(1, weight=1)
 
-        toolbar = tk.Frame(frame, bg=WIN_FACE)
-        toolbar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
-        toolbar.grid_columnconfigure(0, weight=1)
+        top = tk.Frame(frame, bg=WIN_FACE)
+        top.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        top.grid_columnconfigure(0, weight=1)
 
-        fill_row = tk.Frame(toolbar, bg=WIN_FACE)
-        fill_row.grid(row=0, column=0, columnspan=2, sticky="ew")
-        fill_row.grid_columnconfigure(0, weight=1)
-        tk.Label(
-            fill_row,
-            text=self._t("image_link_label"),
-            bg=WIN_FACE,
-            fg=WIN_DARK,
-            font=FONT_CAPTION,
-        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
-        self.list_entry = self._make_entry(fill_row, self.list_entry_var)
-        self.list_entry.grid(row=1, column=0, sticky="ew")
+        self._make_field_label(top, self._t("image_link_label"), row=0, column=0)
+
+        input_row = tk.Frame(top, bg=WIN_FACE)
+        input_row.grid(row=1, column=0, sticky="ew")
+        input_row.grid_columnconfigure(0, weight=1)
+        self.list_entry = self._make_entry(input_row, self.list_entry_var)
+        self.list_entry.grid(row=0, column=0, sticky="ew")
         self.add_list_item_button = self._make_button(
-            fill_row, self._t("add"), self._add_list_entry, width=10
+            input_row, self._t("add"), self._add_list_entry, width=10
         )
-        self.add_list_item_button.grid(row=1, column=1, padx=(6, 0))
+        self.add_list_item_button.grid(row=0, column=1, padx=(6, 0))
 
-        actions = tk.Frame(toolbar, bg=WIN_FACE)
-        actions.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        actions.grid_columnconfigure(4, weight=1)
+        actions = tk.Frame(top, bg=WIN_FACE)
+        actions.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        actions.grid_columnconfigure(3, weight=1)
 
         self.images_autopaste_toggle = tk.Checkbutton(
             actions,
-            text=self._t("youtube_hotkey_toggle"),
+            text=self._hotkey_toggle_label(),
             variable=self.images_autopaste_var,
             command=lambda: self._toggle_autopaste("imagenes"),
             bg=WIN_FACE,
             fg=WIN_BLACK,
             activebackground=WIN_FACE,
             activeforeground=WIN_BLACK,
-            selectcolor=WIN_WHITE,
+            selectcolor=WIN_LIGHT,
             font=FONT_CAPTION,
         )
         self.images_autopaste_toggle.grid(row=0, column=0, sticky="w")
@@ -1795,75 +2107,61 @@ class DownloaderApp(tk.Tk):
         )
         self.clear_list_button.grid(row=0, column=1, padx=(8, 0))
         self.load_query_file_button = self._make_button(
-            actions, self._t("load_txt"), self._load_queries_from_file, width=12
+            actions, self._t("add_txt"), self._load_queries_from_file, width=12
         )
         self.load_query_file_button.grid(row=0, column=2, padx=(6, 0))
         self.search_queries_button = self._make_button(
             actions, self._t("search_images"), self._start_query_search, width=14, primary=True
         )
-        self.search_queries_button.grid(row=0, column=3, padx=(6, 0))
-        self.paste_now_button = self._make_button(
-            actions, self._t("paste_now"), self._paste_clipboard_content, width=12
-        )
-        self.paste_now_button.grid(row=0, column=4, padx=(6, 0), sticky="e")
-
-        source_row = tk.Frame(toolbar, bg=WIN_FACE)
-        source_row.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
-        tk.Label(
-            source_row,
-            text=self._t("source_label"),
-            bg=WIN_FACE,
-            fg=WIN_DARK,
-            font=FONT_CAPTION,
-        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
-        self.search_source_menu = self._make_option_menu(
-            source_row,
-            self.search_source_var,
-            SEARCH_SOURCES,
-            command=self._on_search_source_change,
-        )
-        self.search_source_menu.grid(row=0, column=1, sticky="w")
+        self.search_queries_button.grid(row=0, column=4, padx=(6, 0))
 
         main = tk.Frame(frame, bg=WIN_FACE)
-        main.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        main.grid(row=1, column=0, sticky="nsew")
         main.grid_columnconfigure(0, weight=3)
         main.grid_columnconfigure(1, weight=2)
         main.grid_rowconfigure(0, weight=1)
 
-        list_group = self._make_group(main, self._t("search_group"))
-        list_group.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        list_group.grid_columnconfigure(0, weight=1)
-        list_group.grid_rowconfigure(0, weight=1)
-        list_wrap = tk.Frame(list_group, bg=WIN_FACE)
-        list_wrap.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+        list_wrap = tk.Frame(main, bg=WIN_FACE, bd=1, relief="solid", highlightbackground=WIN_EDGE)
+        list_wrap.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         list_wrap.grid_columnconfigure(0, weight=1)
         list_wrap.grid_rowconfigure(0, weight=1)
-        self.image_listbox, self.image_list_scrollbar, _img_list_frame = self._make_listbox(
+        self.image_listbox, self.image_list_scrollbar, img_list_frame = self._make_listbox(
             list_wrap, height=14
         )
-        _img_list_frame.grid(row=0, column=0, sticky="nsew")
+        img_list_frame.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
         self.image_listbox.bind("<<ListboxSelect>>", self._on_image_list_select)
+        self.image_listbox.bind("<Double-Button-1>", lambda _e: self._replace_selected_image_item())
+        self.image_listbox.bind("<Delete>", lambda _e: self._remove_selected_image_item())
 
-        preview_group = self._make_group(main, self._t("preview_label"))
-        preview_group.grid(row=0, column=1, sticky="nsew")
-        preview_group.grid_columnconfigure(0, weight=1)
+        preview_panel = tk.Frame(main, bg=WIN_FACE)
+        preview_panel.grid(row=0, column=1, sticky="nsew")
+        preview_panel.grid_columnconfigure(0, weight=1)
+        preview_panel.grid_rowconfigure(0, weight=1)
+
+        tk.Label(
+            preview_panel,
+            text=self._t("preview_label"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
 
         self.image_preview_label = tk.Label(
-            preview_group,
+            preview_panel,
             text=self._t("preview_label"),
             bg=WIN_LIGHT,
             fg=WIN_DARK,
             relief="solid",
             bd=1,
             highlightbackground=WIN_EDGE,
-            width=36,
-            height=12,
             anchor="center",
+            font=FONT_NORMAL,
         )
-        self.image_preview_label.grid(row=0, column=0, sticky="nsew", padx=8, pady=(8, 4))
+        self.image_preview_label.grid(row=1, column=0, sticky="nsew")
 
-        preview_opts = tk.Frame(preview_group, bg=WIN_FACE)
-        preview_opts.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 4))
+        preview_opts = tk.Frame(preview_panel, bg=WIN_FACE)
+        preview_opts.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        preview_opts.grid_columnconfigure(0, weight=1)
         tk.Label(
             preview_opts,
             text=self._t("format_group"),
@@ -1879,7 +2177,6 @@ class DownloaderApp(tk.Tk):
             command=self._on_image_export_setting_change,
         )
         self.image_format_menu.grid(row=1, column=0, sticky="ew")
-
         tk.Label(
             preview_opts,
             text=self._t("quality_group"),
@@ -1894,29 +2191,11 @@ class DownloaderApp(tk.Tk):
             quality_labels,
             command=self._on_image_export_setting_change,
         )
-        self.image_quality_menu.grid(row=3, column=0, sticky="ew", pady=(0, 4))
-
-        preview_actions = tk.Frame(preview_group, bg=WIN_FACE)
-        preview_actions.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 8))
-        self.image_remove_button = self._make_button(
-            preview_actions,
-            self._t("remove_button"),
-            self._remove_selected_image_item,
-            width=10,
-        )
-        self.image_remove_button.grid(row=0, column=0, sticky="w")
-        self.image_replace_button = self._make_button(
-            preview_actions,
-            self._t("replace_button"),
-            self._replace_selected_image_item,
-            width=10,
-        )
-        self.image_replace_button.grid(row=0, column=1, padx=(6, 0), sticky="w")
+        self.image_quality_menu.grid(row=3, column=0, sticky="ew")
 
         footer = tk.Frame(frame, bg=WIN_FACE)
-        footer.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        footer.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         footer.grid_columnconfigure(1, weight=1)
-
         tk.Label(
             footer,
             text=self._t("folder_prefix"),
@@ -1930,10 +2209,6 @@ class DownloaderApp(tk.Tk):
             footer, self._t("change_folder"), lambda: self._pick_folder("imagenes"), width=12
         )
         self.image_browse_button.grid(row=0, column=2, padx=(6, 0))
-        self.image_open_folder_button = self._make_button(
-            footer, self._t("open_folder"), self._open_output_folder, width=12
-        )
-        self.image_open_folder_button.grid(row=0, column=3, padx=(6, 0))
         self.image_download_button = self._make_button(
             footer,
             self._t("download_batch"),
@@ -1941,12 +2216,1114 @@ class DownloaderApp(tk.Tk):
             width=16,
             primary=True,
         )
-        self.image_download_button.grid(row=0, column=4, padx=(6, 0))
+        self.image_download_button.grid(row=0, column=3, padx=(6, 0), sticky="e")
+
+        status_row = tk.Frame(frame, bg=WIN_FACE)
+        status_row.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        status_row.grid_columnconfigure(1, weight=1)
+
+        tk.Label(
+            status_row,
+            text=self._t("status_label"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+
+        self.image_status_label = tk.Label(
+            status_row,
+            textvariable=self.status_var,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            relief="solid",
+            bd=1,
+            highlightbackground=WIN_EDGE,
+            font=FONT_NORMAL,
+            anchor="w",
+            padx=6,
+            pady=2,
+        )
+        self.image_status_label.grid(row=0, column=1, sticky="ew")
+
+        last_wrap = tk.Frame(status_row, bg=WIN_FACE)
+        last_wrap.grid(row=0, column=2, sticky="e", padx=(12, 0))
+        tk.Label(
+            last_wrap,
+            text=self._t("last_label"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.image_last_action_label = tk.Label(
+            last_wrap,
+            textvariable=self.last_action_var,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            relief="solid",
+            bd=1,
+            highlightbackground=WIN_EDGE,
+            font=FONT_NORMAL,
+            anchor="w",
+            padx=6,
+            pady=2,
+            cursor="hand2",
+        )
+        self.image_last_action_label.grid(row=0, column=1, sticky="ew")
+        self.image_last_action_label.bind("<Button-1>", lambda _e: self._open_log_window())
 
         self._sync_image_export_menus()
         self._refresh_image_listbox()
         self._apply_search_source_state()
+        self._update_image_export_controls()
         return frame
+
+    def _conversion_refresh_scroll(self, _event=None):
+        if not hasattr(self, "conversion_scroll_canvas"):
+            return
+        canvas = self.conversion_scroll_canvas
+        canvas.update_idletasks()
+        bbox = canvas.bbox("all")
+        if bbox is None:
+            return
+        canvas.configure(scrollregion=bbox)
+        content_height = bbox[3] - bbox[1]
+        view_height = max(canvas.winfo_height(), 1)
+        if hasattr(self, "conversion_scrollbar"):
+            if content_height <= view_height + 2:
+                self.conversion_scrollbar.grid_remove()
+                canvas.yview_moveto(0)
+            else:
+                self.conversion_scrollbar.grid(row=0, column=1, sticky="ns", padx=(4, 12))
+
+    def _conversion_bind_mousewheel(self, event):
+        if not hasattr(self, "conversion_scroll_canvas"):
+            return
+        canvas = self.conversion_scroll_canvas
+        if canvas.bbox("all") is None:
+            return
+        content_height = canvas.bbox("all")[3]
+        view_height = canvas.winfo_height()
+        if content_height <= view_height:
+            return
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _conversion_enable_mousewheel(self, _event=None):
+        self.bind_all("<MouseWheel>", self._conversion_bind_mousewheel)
+
+    def _conversion_disable_mousewheel(self, _event=None):
+        self.unbind_all("<MouseWheel>")
+
+    def _build_conversion_panel(self, parent):
+        frame = tk.Frame(parent, bg=WIN_FACE)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(1, weight=1)
+
+        card_height = 300
+        card_font_title = ("Segoe UI", 12, "bold")
+        flow_arrow_font = ("Segoe UI", 30)
+
+        flow = tk.Frame(frame, bg=WIN_FACE)
+        flow.grid(row=0, column=0, sticky="ew", padx=28, pady=(24, 16))
+        flow.grid_columnconfigure(0, weight=1, uniform="conversion_card")
+        flow.grid_columnconfigure(2, weight=0)
+        flow.grid_columnconfigure(4, weight=1, uniform="conversion_card")
+        flow.grid_rowconfigure(0, minsize=card_height)
+
+        def _card_shell(column):
+            shell = tk.Frame(flow, bg=WIN_FACE)
+            shell.grid(row=0, column=column, sticky="nsew", padx=10)
+            shell.grid_columnconfigure(0, weight=1)
+            shell.grid_rowconfigure(0, weight=1)
+            card = tk.Frame(
+                shell,
+                bg=WIN_LIGHT,
+                bd=1,
+                relief="solid",
+                highlightbackground=WIN_EDGE,
+                height=card_height,
+            )
+            card.grid(row=0, column=0, sticky="nsew")
+            card.grid_propagate(False)
+            card.grid_columnconfigure(0, weight=1)
+            return card
+
+        source_card = _card_shell(0)
+        source_card.grid_rowconfigure(2, weight=1)
+        source_header = tk.Frame(source_card, bg=WIN_LIGHT)
+        source_header.grid(row=0, column=0, sticky="ew", padx=16, pady=(10, 6))
+        source_header.grid_columnconfigure(0, weight=1)
+        tk.Label(
+            source_header,
+            text=self._t("conversion_source"),
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            font=card_font_title,
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+        trash_image = conversion_preview.ui_icon("trash", (18, 18))
+        self.conversion_trash_photo = ImageTk.PhotoImage(trash_image)
+        self.ui_photo_refs.append(self.conversion_trash_photo)
+        self.conversion_clear_source_button = tk.Button(
+            source_header,
+            image=self.conversion_trash_photo,
+            command=self._clear_conversion_source,
+            bg=WIN_LIGHT,
+            activebackground=WIN_FACE,
+            relief="flat",
+            bd=0,
+            padx=2,
+            pady=2,
+            cursor="hand2",
+            state="disabled",
+        )
+        self.conversion_clear_source_button.grid(row=0, column=1, sticky="ne", padx=(6, 0))
+        source_preview_wrap = tk.Frame(source_card, bg=WIN_LIGHT, width=200, height=112)
+        source_preview_wrap.grid(row=1, column=0, pady=(0, 6))
+        source_preview_wrap.grid_propagate(False)
+        self.conversion_source_preview_label = tk.Label(
+            source_preview_wrap,
+            bg=WIN_LIGHT,
+            anchor="center",
+        )
+        self.conversion_source_preview_label.pack(expand=True, fill="both")
+        source_info_wrap = tk.Frame(source_card, bg=WIN_LIGHT)
+        source_info_wrap.grid(row=2, column=0, pady=(0, 6), padx=16, sticky="nsew")
+        self.conversion_source_name_label = tk.Label(
+            source_info_wrap,
+            textvariable=self.conversion_source_name_var,
+            bg=WIN_LIGHT,
+            fg=WIN_DARK,
+            font=FONT_SMALL,
+            wraplength=320,
+            justify="center",
+            anchor="center",
+            cursor="",
+        )
+        self.conversion_source_name_label.pack(fill="x")
+        self.conversion_source_name_label.bind(
+            "<Button-1>", lambda _event: self._on_conversion_source_name_click()
+        )
+        self.conversion_view_batch_label = tk.Label(
+            source_info_wrap,
+            text=self._t("conversion_view_batch"),
+            bg=WIN_LIGHT,
+            fg=WIN_LINK,
+            font=FONT_CAPTION,
+            justify="center",
+            anchor="center",
+            cursor="hand2",
+        )
+        self.conversion_view_batch_label.pack(fill="x", pady=(4, 0))
+        self.conversion_view_batch_label.bind(
+            "<Button-1>", lambda _event: self._on_conversion_source_name_click()
+        )
+        self.conversion_view_batch_label.pack_forget()
+        pick_wrap = tk.Frame(source_card, bg=WIN_LIGHT)
+        pick_wrap.grid(row=3, column=0, pady=(0, 14))
+        self.conversion_pick_button = self._make_button(
+            pick_wrap,
+            self._t("conversion_pick_file"),
+            self._pick_conversion_file,
+            width=16,
+        )
+        self.conversion_pick_button.pack(side="left", padx=(0, 6))
+        self.conversion_batch_button = self._make_button(
+            pick_wrap,
+            self._t("conversion_pick_batch"),
+            self._pick_conversion_batch,
+            width=16,
+        )
+        self.conversion_batch_button.pack(side="left")
+
+        tk.Label(flow, text="→", bg=WIN_FACE, fg=WIN_DARK, font=flow_arrow_font).grid(
+            row=0, column=1, padx=8, sticky="ns"
+        )
+
+        action_wrap = tk.Frame(flow, bg=WIN_FACE)
+        action_wrap.grid(row=0, column=2, padx=8, sticky="ns")
+        action_wrap.grid_rowconfigure(0, weight=1)
+        action_wrap.grid_rowconfigure(2, weight=1)
+        self.conversion_run_button = self._make_button(
+            action_wrap,
+            self._t("conversion_action"),
+            self._start_conversion,
+            width=16,
+            primary=True,
+        )
+        self.conversion_run_button.grid(row=1, column=0, ipady=18, ipadx=10)
+
+        tk.Label(flow, text="→", bg=WIN_FACE, fg=WIN_DARK, font=flow_arrow_font).grid(
+            row=0, column=3, padx=8, sticky="ns"
+        )
+
+        result_card = _card_shell(4)
+        result_card.grid_rowconfigure(2, weight=1)
+        tk.Label(
+            result_card,
+            text=self._t("conversion_result"),
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            font=card_font_title,
+            anchor="center",
+        ).grid(row=0, column=0, pady=(14, 6), padx=16, sticky="ew")
+        result_preview_wrap = tk.Frame(result_card, bg=WIN_LIGHT, width=200, height=112)
+        result_preview_wrap.grid(row=1, column=0, pady=(0, 6))
+        result_preview_wrap.grid_propagate(False)
+        self.conversion_result_preview_label = tk.Label(
+            result_preview_wrap,
+            bg=WIN_LIGHT,
+            anchor="center",
+        )
+        self.conversion_result_preview_label.pack(expand=True, fill="both")
+        self.conversion_result_label = tk.Label(
+            result_card,
+            textvariable=self.conversion_result_var,
+            bg=WIN_LIGHT,
+            fg=WIN_DARK,
+            font=FONT_SMALL,
+            wraplength=320,
+            justify="center",
+            anchor="center",
+        )
+        self.conversion_result_label.grid(row=2, column=0, pady=(0, 6), padx=16, sticky="nsew")
+        result_wrap = tk.Frame(result_card, bg=WIN_LIGHT)
+        result_wrap.grid(row=3, column=0, pady=(0, 14))
+        self.conversion_open_result_button = self._make_button(
+            result_wrap,
+            self._t("conversion_open_result"),
+            self._open_conversion_result,
+            width=22,
+        )
+        self.conversion_open_result_button.configure(state="disabled")
+        self.conversion_open_result_button.pack()
+
+        scroll_container = tk.Frame(frame, bg=WIN_FACE)
+        scroll_container.grid(row=1, column=0, sticky="nsew", padx=(28, 8))
+        scroll_container.grid_columnconfigure(0, weight=1)
+        scroll_container.grid_rowconfigure(0, weight=1)
+
+        self.conversion_scroll_canvas = tk.Canvas(
+            scroll_container,
+            bg=WIN_FACE,
+            highlightthickness=0,
+            bd=0,
+        )
+        self.conversion_scroll_canvas.grid(row=0, column=0, sticky="nsew")
+        self.conversion_scrollbar = tk.Scrollbar(
+            scroll_container,
+            orient="vertical",
+            command=self.conversion_scroll_canvas.yview,
+        )
+        self.conversion_scrollbar.grid(row=0, column=1, sticky="ns", padx=(4, 12))
+        self.conversion_scroll_canvas.configure(yscrollcommand=self.conversion_scrollbar.set)
+
+        scroll_body = tk.Frame(self.conversion_scroll_canvas, bg=WIN_FACE)
+        self.conversion_scroll_window = self.conversion_scroll_canvas.create_window(
+            (0, 0),
+            window=scroll_body,
+            anchor="nw",
+        )
+
+        def _on_canvas_configure(event):
+            self.conversion_scroll_canvas.itemconfigure(
+                self.conversion_scroll_window,
+                width=event.width,
+            )
+            self._conversion_refresh_scroll()
+
+        self.conversion_scroll_canvas.bind("<Configure>", _on_canvas_configure)
+        scroll_body.bind("<Configure>", self._conversion_refresh_scroll)
+        self.conversion_scroll_canvas.bind("<Enter>", self._conversion_enable_mousewheel)
+        self.conversion_scroll_canvas.bind("<Leave>", self._conversion_disable_mousewheel)
+
+        tk.Label(
+            scroll_body,
+            text=self._t("conversion_target_question"),
+            bg=WIN_FACE,
+            fg=WIN_BLACK,
+            font=("Segoe UI", 11),
+            anchor="center",
+        ).pack(fill="x", pady=(4, 14))
+
+        self.conversion_video_options_frame = tk.Frame(scroll_body, bg=WIN_FACE)
+        self.conversion_video_options_frame.pack(fill="x", pady=(0, 12))
+        tk.Label(
+            self.conversion_video_options_frame,
+            text=self._t("conversion_video_options"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_NORMAL,
+        ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        tk.Label(
+            self.conversion_video_options_frame,
+            text=self._t("conversion_video_duration"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=1, column=0, sticky="w", padx=(0, 8))
+        self.conversion_duration_entry = self._make_entry(
+            self.conversion_video_options_frame,
+            self.conversion_video_duration_var,
+        )
+        self.conversion_duration_entry.configure(width=8)
+        self.conversion_duration_entry.grid(row=1, column=1, sticky="w", padx=(0, 16))
+        tk.Label(
+            self.conversion_video_options_frame,
+            text=self._t("conversion_video_quality"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=1, column=2, sticky="w", padx=(0, 8))
+        self.conversion_quality_map = {
+            self._t("quality_baja"): "baja",
+            self._t("quality_media"): "media",
+            self._t("quality_alta"): "alta",
+        }
+        self.conversion_quality_reverse = {value: label for label, value in self.conversion_quality_map.items()}
+        self.conversion_video_quality_menu = tk.OptionMenu(
+            self.conversion_video_options_frame,
+            self.conversion_video_quality_var,
+            *self.conversion_quality_map.keys(),
+        )
+        self.conversion_video_quality_menu.configure(
+            bg=WIN_BUTTON,
+            fg=WIN_BLACK,
+            activebackground=WIN_TAB_ACTIVE,
+            highlightthickness=0,
+            bd=1,
+            relief="solid",
+            font=FONT_NORMAL,
+        )
+        self.conversion_video_quality_menu["menu"].configure(
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            activebackground=WIN_TAB_ACTIVE,
+        )
+        self.conversion_video_quality_var.set(self._t("quality_media"))
+        self.conversion_video_quality_menu.grid(row=1, column=3, sticky="w")
+        self.conversion_video_options_frame.pack_forget()
+
+        self.conversion_formats_wrap = tk.Frame(scroll_body, bg=WIN_FACE)
+        formats_wrap = self.conversion_formats_wrap
+        formats_wrap.pack(fill="x", expand=True, pady=(0, 12))
+        formats_wrap.grid_columnconfigure(0, weight=1)
+        self.conversion_format_buttons = {}
+        row_index = 0
+        for group_key, labels in (
+            ("conversion_images_group", conversion.IMAGE_TARGETS),
+            ("conversion_videos_group", conversion.VIDEO_TARGETS),
+            ("conversion_audios_group", conversion.AUDIO_TARGETS),
+        ):
+            tk.Label(
+                formats_wrap,
+                text=self._t(group_key),
+                bg=WIN_FACE,
+                fg=WIN_DARK,
+                font=FONT_NORMAL,
+            ).grid(row=row_index, column=0, sticky="w", pady=(14 if row_index else 0, 10))
+            row_index += 1
+            button_row = tk.Frame(formats_wrap, bg=WIN_FACE)
+            button_row.grid(row=row_index, column=0, sticky="ew", pady=(0, 6))
+            for col in range(len(labels)):
+                button_row.grid_columnconfigure(col, weight=1, uniform="conversion_fmt")
+            for index, fmt in enumerate(labels):
+                display = "jpg" if fmt == "jpg" else fmt
+                button = self._make_button(
+                    button_row,
+                    display,
+                    lambda target=fmt: self._select_conversion_format(target),
+                    width=10,
+                )
+                button.configure(state="disabled")
+                button.grid(
+                    row=0,
+                    column=index,
+                    sticky="ew",
+                    padx=(0 if index == 0 else 5, 5),
+                    pady=5,
+                    ipady=14,
+                )
+                self.conversion_format_buttons[fmt] = button
+            row_index += 1
+
+        footer = tk.Frame(frame, bg=WIN_FACE)
+        footer.grid(row=2, column=0, sticky="ew", pady=(12, 0), padx=28)
+        footer.grid_columnconfigure(1, weight=5)
+        footer.grid_columnconfigure(5, weight=2)
+        footer.grid_rowconfigure(1, weight=0)
+
+        progress_wrap = tk.Frame(footer, bg=WIN_FACE)
+        progress_wrap.grid(row=1, column=0, columnspan=6, sticky="ew", pady=(10, 0))
+        progress_wrap.grid_columnconfigure(0, weight=1)
+        self.conversion_progress_canvas = tk.Canvas(
+            progress_wrap,
+            height=18,
+            bg=WIN_LIGHT,
+            highlightthickness=1,
+            highlightbackground=WIN_EDGE,
+            bd=0,
+        )
+        self.conversion_progress_canvas.grid(row=0, column=0, sticky="ew")
+        self.conversion_progress_fill = self.conversion_progress_canvas.create_rectangle(
+            0, 0, 0, 18, fill=WIN_BLUE, outline=""
+        )
+        self.conversion_progress_text = self.conversion_progress_canvas.create_text(
+            0, 9, text="0%", fill=WIN_BLACK, font=FONT_CAPTION, anchor="w"
+        )
+        self.conversion_progress_canvas.bind(
+            "<Configure>",
+            lambda _event: self._set_conversion_progress(self.current_progress),
+        )
+
+        tk.Label(
+            footer,
+            text=self._t("folder_prefix"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.conversion_folder_entry = self._make_entry(footer, self.conversion_output_var)
+        self.conversion_folder_entry.grid(row=0, column=1, sticky="ew")
+        self.conversion_browse_button = self._make_button(
+            footer,
+            self._t("change_folder"),
+            lambda: self._pick_folder("conversion"),
+            width=10,
+        )
+        self.conversion_browse_button.grid(row=0, column=2, padx=(8, 0))
+        self.conversion_open_folder_button = self._make_button(
+            footer,
+            self._t("open_folder"),
+            self._open_conversion_folder,
+            width=12,
+        )
+        self.conversion_open_folder_button.grid(row=0, column=3, padx=(6, 0))
+
+        status_wrap = tk.Frame(footer, bg=WIN_FACE)
+        status_wrap.grid(row=0, column=4, sticky="e", padx=(16, 0))
+        tk.Label(
+            status_wrap,
+            text=self._t("status_label"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.conversion_status_label = tk.Label(
+            status_wrap,
+            textvariable=self.status_var,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            relief="solid",
+            bd=1,
+            highlightbackground=WIN_EDGE,
+            font=FONT_NORMAL,
+            anchor="w",
+            padx=6,
+            pady=2,
+            width=14,
+        )
+        self.conversion_status_label.grid(row=0, column=1, sticky="w")
+
+        last_wrap = tk.Frame(footer, bg=WIN_FACE)
+        last_wrap.grid(row=0, column=5, sticky="ew", padx=(12, 0))
+        last_wrap.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            last_wrap,
+            text=self._t("last_label"),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_CAPTION,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.conversion_last_action_label = tk.Label(
+            last_wrap,
+            textvariable=self.last_action_var,
+            bg=WIN_LIGHT,
+            fg=WIN_BLACK,
+            relief="solid",
+            bd=1,
+            highlightbackground=WIN_EDGE,
+            font=FONT_NORMAL,
+            anchor="w",
+            padx=6,
+            pady=2,
+            cursor="hand2",
+        )
+        self.conversion_last_action_label.grid(row=0, column=1, sticky="ew")
+        self.conversion_last_action_label.bind("<Button-1>", lambda _e: self._open_log_window())
+
+        self._update_conversion_format_buttons()
+        self._update_conversion_source_controls()
+        self._set_conversion_source_preview()
+        self._clear_conversion_result_preview()
+        self.after_idle(self._conversion_refresh_scroll)
+        return frame
+
+    def _conversion_preview_photo(self, pil_image):
+        thumb = pil_image.copy()
+        if thumb.mode not in ("RGB", "RGBA"):
+            thumb = thumb.convert("RGBA")
+        thumb.thumbnail((200, 110), Image.Resampling.LANCZOS)
+        photo = ImageTk.PhotoImage(thumb)
+        self.ui_photo_refs.append(photo)
+        return photo
+
+    def _set_conversion_source_preview(self, pil_image=None):
+        if not hasattr(self, "conversion_source_preview_label"):
+            return
+        if pil_image is None:
+            pil_image = conversion_preview.placeholder_for_kind("file")
+        photo = self._conversion_preview_photo(pil_image)
+        self.conversion_source_preview_photo = photo
+        self.conversion_source_preview_label.configure(image=photo, text="")
+
+    def _set_conversion_result_preview(self, pil_image=None):
+        if not hasattr(self, "conversion_result_preview_label"):
+            return
+        if pil_image is None:
+            self._clear_conversion_result_preview()
+            return
+        photo = self._conversion_preview_photo(pil_image)
+        self.conversion_result_preview_photo = photo
+        self.conversion_result_preview_label.configure(image=photo, text="")
+
+    def _clear_conversion_result_preview(self):
+        if not hasattr(self, "conversion_result_preview_label"):
+            return
+        self.conversion_result_preview_photo = None
+        self.conversion_result_preview_label.configure(image="", text="")
+
+    def _load_conversion_preview(self, path, target):
+        try:
+            preview = conversion_preview.load_preview(path, ffmpeg_location())
+        except Exception:
+            kind = conversion.detect_media_kind(Path(path))
+            preview = conversion_preview.placeholder_for_kind(
+                kind if kind != "unknown" else "file"
+            )
+        self.worker_queue.put(("conversion_preview", (target, preview)))
+
+    def _conversion_filetypes(self):
+        extensions = " ".join(f"*{ext}" for ext in conversion.ALL_INPUT_EXTENSIONS)
+        return [
+            (self._t("conversion_source"), extensions),
+            ("All files", "*.*"),
+        ]
+
+    def _conversion_has_source(self):
+        return bool(self._conversion_source_paths())
+
+    def _conversion_batch_summary_text(self):
+        paths = self._conversion_source_paths()
+        if not paths:
+            return self._t("conversion_batch_empty")
+        if len(paths) == 1:
+            return paths[0].name
+        return self._t("conversion_batch_hint", count=len(paths))
+
+    def _on_conversion_source_name_click(self):
+        if self._is_busy() or not self._conversion_has_source():
+            return
+        self._open_conversion_batch_window()
+
+    def _update_conversion_source_controls(self):
+        has_source = self._conversion_has_source()
+        busy = self._is_busy()
+        if hasattr(self, "conversion_clear_source_button"):
+            self._configure_widget_state(
+                self.conversion_clear_source_button,
+                "normal" if has_source and not busy else "disabled",
+            )
+        if hasattr(self, "conversion_source_name_label"):
+            self.conversion_source_name_label.configure(
+                cursor="hand2" if has_source and not busy else "",
+                fg=WIN_LINK if has_source and not busy else WIN_DARK,
+            )
+        if hasattr(self, "conversion_view_batch_label"):
+            if has_source and not busy:
+                if not self.conversion_view_batch_label.winfo_ismapped():
+                    self.conversion_view_batch_label.pack(fill="x", pady=(4, 0))
+                self.conversion_view_batch_label.configure(
+                    cursor="hand2",
+                    fg=WIN_LINK,
+                    text=self._t("conversion_view_batch"),
+                )
+            else:
+                self.conversion_view_batch_label.pack_forget()
+
+    def _sync_conversion_batch_ui(self):
+        paths = [path for path in self.conversion_batch_paths if path.is_file()]
+        self.conversion_batch_paths = paths
+        if self.conversion_batch_paths:
+            self.conversion_source_path = self.conversion_batch_paths[0]
+            self.conversion_source_name_var.set(
+                self._t("conversion_batch_hint", count=len(self.conversion_batch_paths))
+            )
+        elif self.conversion_source_path and self.conversion_source_path.is_file():
+            self.conversion_source_name_var.set(self.conversion_source_path.name)
+        else:
+            self.conversion_source_path = None
+            self.conversion_source_name_var.set(self._t("conversion_source_hint"))
+            self._set_conversion_source_preview()
+        self._update_conversion_format_buttons()
+        self._refresh_conversion_batch_listbox()
+
+    def _conversion_batch_window_is_open(self):
+        listbox = getattr(self, "conversion_batch_listbox", None)
+        if listbox is None:
+            return False
+        try:
+            return bool(listbox.winfo_exists())
+        except tk.TclError:
+            return False
+
+    def _refresh_conversion_batch_listbox(self):
+        if not self._conversion_batch_window_is_open():
+            return
+        paths = self._conversion_source_paths()
+        selected = self.conversion_batch_listbox.curselection()
+        self.conversion_batch_listbox.delete(0, "end")
+        for index, path in enumerate(paths, start=1):
+            self.conversion_batch_listbox.insert("end", f"{index}. {path.name}")
+        if paths:
+            if selected and selected[0] < self.conversion_batch_listbox.size():
+                self.conversion_batch_listbox.selection_set(selected[0])
+            else:
+                self.conversion_batch_listbox.selection_set(0)
+        count_label = getattr(self, "conversion_batch_count_label", None)
+        if count_label is not None:
+            try:
+                if count_label.winfo_exists():
+                    count_label.configure(text=self._conversion_batch_summary_text())
+            except tk.TclError:
+                pass
+
+    def _open_conversion_batch_window(self):
+        if self._is_busy() or not self._conversion_has_source():
+            return
+        if self.conversion_batch_window is not None and self.conversion_batch_window.winfo_exists():
+            self.conversion_batch_window.lift()
+            self.conversion_batch_window.focus_force()
+            self._refresh_conversion_batch_listbox()
+            return
+
+        window = tk.Toplevel(self)
+        window.title(self._t("conversion_batch_title"))
+        window.configure(bg=WIN_FACE)
+        window.geometry("560x360")
+        window.minsize(420, 280)
+        window.transient(self)
+
+        frame = tk.Frame(window, bg=WIN_FACE)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(1, weight=1)
+
+        self.conversion_batch_count_label = tk.Label(
+            frame,
+            text=self._conversion_batch_summary_text(),
+            bg=WIN_FACE,
+            fg=WIN_DARK,
+            font=FONT_NORMAL,
+            anchor="w",
+        )
+        self.conversion_batch_count_label.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+
+        list_wrap = tk.Frame(frame, bg=WIN_FACE)
+        list_wrap.grid(row=1, column=0, sticky="nsew")
+        list_wrap.grid_columnconfigure(0, weight=1)
+        list_wrap.grid_rowconfigure(0, weight=1)
+        self.conversion_batch_listbox, batch_scrollbar, list_frame = self._make_listbox(
+            list_wrap, height=12
+        )
+        list_frame.grid(row=0, column=0, sticky="nsew")
+        self.conversion_batch_listbox.bind(
+            "<Delete>", lambda _e: self._remove_selected_conversion_batch_item()
+        )
+
+        actions = tk.Frame(frame, bg=WIN_FACE)
+        actions.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        actions.grid_columnconfigure(2, weight=1)
+        self.conversion_batch_remove_button = self._make_button(
+            actions,
+            self._t("remove_button"),
+            self._remove_selected_conversion_batch_item,
+            width=16,
+        )
+        self.conversion_batch_remove_button.grid(row=0, column=0, sticky="w")
+        self.conversion_batch_clear_button = self._make_button(
+            actions,
+            self._t("conversion_batch_clear_all"),
+            self._clear_conversion_source,
+            width=14,
+        )
+        self.conversion_batch_clear_button.grid(row=0, column=1, padx=(6, 0), sticky="w")
+
+        def on_close():
+            self.conversion_batch_window = None
+            self.conversion_batch_listbox = None
+            self.conversion_batch_count_label = None
+            self.conversion_batch_remove_button = None
+            self.conversion_batch_clear_button = None
+            window.destroy()
+
+        close_button = self._make_button(
+            actions,
+            self._t("close_button"),
+            on_close,
+            width=10,
+        )
+        close_button.grid(row=0, column=3, sticky="e")
+
+        window.protocol("WM_DELETE_WINDOW", on_close)
+        self.conversion_batch_window = window
+        self._refresh_conversion_batch_listbox()
+        self._update_conversion_batch_window_controls()
+        self._update_conversion_source_controls()
+
+    def _update_conversion_batch_window_controls(self):
+        has_source = self._conversion_has_source()
+        busy = self._is_busy()
+        for widget in (
+            getattr(self, "conversion_batch_remove_button", None),
+            getattr(self, "conversion_batch_clear_button", None),
+        ):
+            self._configure_widget_state(
+                widget, "normal" if has_source and not busy else "disabled"
+            )
+
+    def _remove_selected_conversion_batch_item(self):
+        if self._is_busy() or not self._conversion_batch_window_is_open():
+            return
+        selection = self.conversion_batch_listbox.curselection()
+        if not selection:
+            return
+        index = selection[0]
+        paths = self._conversion_source_paths()
+        if index < 0 or index >= len(paths):
+            return
+        removed = paths[index]
+        if self.conversion_batch_paths:
+            if index < len(self.conversion_batch_paths):
+                self.conversion_batch_paths.pop(index)
+            self._log(self._t("conversion_batch_removed_log", name=removed.name))
+            if not self.conversion_batch_paths:
+                self._clear_conversion_source(silent=True)
+                return
+            self._sync_conversion_batch_ui()
+        else:
+            self._log(self._t("conversion_batch_removed_log", name=removed.name))
+            self._clear_conversion_source(silent=True)
+            return
+        self._update_conversion_batch_window_controls()
+        self._update_conversion_source_controls()
+
+    def _clear_conversion_source(self, silent=False):
+        if self._is_busy():
+            return
+        if not self._conversion_has_source():
+            return
+        self.conversion_batch_paths = []
+        self.conversion_source_path = None
+        self.conversion_target_format.set("")
+        self.conversion_source_name_var.set(self._t("conversion_source_hint"))
+        self._set_conversion_source_preview()
+        self._update_conversion_format_buttons()
+        self._refresh_conversion_batch_listbox()
+        self._update_conversion_batch_window_controls()
+        self._update_conversion_source_controls()
+        if not silent:
+            self._log(self._t("conversion_batch_cleared_log"))
+
+    def _conversion_source_paths(self):
+        if self.conversion_batch_paths:
+            return [path for path in self.conversion_batch_paths if path.is_file()]
+        if self.conversion_source_path and self.conversion_source_path.is_file():
+            return [self.conversion_source_path]
+        return []
+
+    def _conversion_format_allowed(self, fmt):
+        paths = self._conversion_source_paths()
+        if not paths:
+            return False
+        for path in paths:
+            kind = conversion.detect_media_kind(path)
+            if not conversion.is_target_allowed(kind, fmt, path):
+                return False
+        return True
+
+    def _conversion_video_options(self):
+        try:
+            duration = float(self.conversion_video_duration_var.get().strip() or "5")
+        except ValueError:
+            duration = 5.0
+        duration = max(1.0, min(duration, 120.0))
+        quality_label = self.conversion_video_quality_var.get()
+        quality_key = self.conversion_quality_map.get(quality_label, "media")
+        return {"video_duration": duration, "video_quality": quality_key}
+
+    def _set_conversion_progress(self, percent):
+        if not hasattr(self, "conversion_progress_canvas"):
+            return
+        self.current_progress = max(0, min(100, float(percent)))
+        width = max(self.conversion_progress_canvas.winfo_width(), 1)
+        fill_width = int(width * (self.current_progress / 100))
+        self.conversion_progress_canvas.coords(
+            self.conversion_progress_fill, 0, 0, fill_width, 18
+        )
+        text_x = max(6, min(fill_width - 6, width - 36))
+        self.conversion_progress_canvas.coords(self.conversion_progress_text, text_x, 9)
+        self.conversion_progress_canvas.itemconfigure(
+            self.conversion_progress_text, text=f"{self.current_progress:.0f}%"
+        )
+
+    def _update_conversion_video_options(self):
+        if not hasattr(self, "conversion_video_options_frame"):
+            return
+        paths = self._conversion_source_paths()
+        selected = self.conversion_target_format.get()
+        show = (
+            bool(paths)
+            and selected in conversion.VIDEO_TARGETS
+            and any(conversion.detect_media_kind(path) == "image" for path in paths)
+            and not self._is_busy()
+        )
+        if show:
+            self.conversion_video_options_frame.pack(
+                fill="x",
+                pady=(0, 12),
+                before=self.conversion_formats_wrap,
+            )
+        else:
+            self.conversion_video_options_frame.pack_forget()
+
+    def _apply_conversion_source(self, paths, batch_mode=False):
+        valid_paths = [Path(path) for path in paths if Path(path).is_file()]
+        if not valid_paths:
+            return
+        if batch_mode:
+            self.conversion_batch_paths = valid_paths
+            self.conversion_source_path = valid_paths[0]
+            self.conversion_source_name_var.set(
+                self._t("conversion_batch_hint", count=len(valid_paths))
+            )
+        else:
+            self.conversion_batch_paths = []
+            self.conversion_source_path = valid_paths[0]
+            self.conversion_source_name_var.set(self.conversion_source_path.name)
+        self.conversion_target_format.set("")
+        self.conversion_result_path = None
+        self.conversion_result_var.set(self._t("conversion_result_empty"))
+        self._configure_widget_state(self.conversion_open_result_button, "disabled")
+        self._clear_conversion_result_preview()
+        kind = conversion.detect_media_kind(self.conversion_source_path)
+        self._set_conversion_source_preview(
+            conversion_preview.placeholder_for_kind(kind if kind != "unknown" else "file")
+        )
+        threading.Thread(
+            target=self._load_conversion_preview,
+            args=(str(self.conversion_source_path), "source"),
+            daemon=True,
+        ).start()
+        self._update_conversion_format_buttons()
+        label = self._t("conversion_batch_hint", count=len(valid_paths)) if batch_mode else valid_paths[0].name
+        self._log(self._t("conversion_source") + f": {label}")
+        self.detail_var.set(self._t("section_ready_conversion"))
+        self._refresh_conversion_batch_listbox()
+        self._update_conversion_batch_window_controls()
+        self._update_conversion_source_controls()
+
+    def _pick_conversion_file(self):
+        if self._is_busy():
+            return
+        selected = filedialog.askopenfilename(
+            title=self._t("conversion_source"),
+            filetypes=self._conversion_filetypes(),
+        )
+        if not selected:
+            return
+        self._apply_conversion_source([selected], batch_mode=False)
+
+    def _pick_conversion_batch(self):
+        if self._is_busy():
+            return
+        selected = filedialog.askopenfilenames(
+            title=self._t("conversion_pick_batch"),
+            filetypes=self._conversion_filetypes(),
+        )
+        if not selected:
+            return
+        self._apply_conversion_source(selected, batch_mode=True)
+
+    def _select_conversion_format(self, target_format):
+        if self._is_busy() or not self._conversion_source_paths():
+            return
+        if not self._conversion_format_allowed(target_format):
+            messagebox.showwarning(self._app_title(), self._t("conversion_unsupported"))
+            return
+        self.conversion_target_format.set(target_format)
+        self._update_conversion_format_buttons()
+
+    def _update_conversion_format_buttons(self):
+        if not hasattr(self, "conversion_format_buttons"):
+            return
+        paths = self._conversion_source_paths()
+        has_source = bool(paths)
+        selected = self.conversion_target_format.get()
+        busy = self._is_busy()
+        for fmt, button in self.conversion_format_buttons.items():
+            allowed = has_source and self._conversion_format_allowed(fmt) and not busy
+            self._configure_widget_state(button, "normal" if allowed else "disabled")
+            if fmt == selected and allowed:
+                button.configure(bg=WIN_TAB_ACTIVE, fg=WIN_ACCENT_TEXT)
+            else:
+                button.configure(bg=WIN_BUTTON, fg=WIN_BLACK)
+        run_state = "normal" if has_source and selected and not busy else "disabled"
+        self._configure_widget_state(self.conversion_run_button, run_state)
+        self._configure_widget_state(self.conversion_pick_button, "disabled" if busy else "normal")
+        self._configure_widget_state(
+            getattr(self, "conversion_batch_button", None), "disabled" if busy else "normal"
+        )
+        self._update_conversion_source_controls()
+        if hasattr(self, "conversion_duration_entry"):
+            self._configure_widget_state(self.conversion_duration_entry, "disabled" if busy else "normal")
+        if hasattr(self, "conversion_video_quality_menu"):
+            self._configure_widget_state(self.conversion_video_quality_menu, "disabled" if busy else "normal")
+        self._update_conversion_video_options()
+        self.after_idle(self._conversion_refresh_scroll)
+
+    def _open_conversion_folder(self):
+        folder = Path(self.conversion_output_var.get() or DEFAULT_CONVERSION_FOLDER)
+        folder.mkdir(parents=True, exist_ok=True)
+        os.startfile(folder)
+
+    def _open_conversion_result(self):
+        if self.conversion_result_path and self.conversion_result_path.exists():
+            os.startfile(self.conversion_result_path)
+
+    def _start_conversion(self):
+        if self._is_busy():
+            return
+        paths = self._conversion_source_paths()
+        if not paths:
+            messagebox.showwarning(self._app_title(), self._t("conversion_no_file"))
+            return
+        target = self.conversion_target_format.get().strip()
+        if not target:
+            messagebox.showwarning(self._app_title(), self._t("conversion_no_format"))
+            return
+
+        if not self._conversion_format_allowed(target):
+            messagebox.showwarning(self._app_title(), self._t("conversion_unsupported"))
+            return
+
+        for path in paths:
+            kind = conversion.detect_media_kind(path)
+            if conversion.conversion_needs_ffmpeg(kind, path, target) and not conversion.find_ffmpeg(
+                ffmpeg_location()
+            ):
+                messagebox.showerror(self._app_title(), self._t("conversion_need_ffmpeg"))
+                return
+
+        output_dir = Path(self.conversion_output_var.get() or DEFAULT_CONVERSION_FOLDER)
+        options = {}
+        if target in conversion.VIDEO_TARGETS and any(
+            conversion.detect_media_kind(path) == "image" for path in paths
+        ):
+            options = self._conversion_video_options()
+
+        self._set_conversion_progress(0)
+        self._set_busy(True)
+        if len(paths) > 1:
+            self.status_var.set(
+                self._t("conversion_batch_busy", current=1, total=len(paths))
+            )
+        else:
+            self.status_var.set(self._t("conversion_busy"))
+        self.detail_var.set(
+            f"{paths[0].name} → {conversion.normalize_format_name(target)}"
+            + (f" (+{len(paths) - 1})" if len(paths) > 1 else "")
+        )
+        self.active_thread = threading.Thread(
+            target=self._conversion_worker,
+            args=(paths, target, output_dir, options),
+            daemon=True,
+        )
+        self.active_thread.start()
+
+    def _conversion_worker(self, source_paths, target_format, output_dir, options):
+        try:
+            total = len(source_paths)
+            results = []
+            for index, source_path in enumerate(source_paths, start=1):
+                if total > 1:
+                    self.worker_queue.put(
+                        (
+                            "status",
+                            self._t("conversion_batch_busy", current=index, total=total),
+                        )
+                    )
+                    self.worker_queue.put(
+                        (
+                            "detail",
+                            f"{source_path.name} → {conversion.normalize_format_name(target_format)}",
+                        )
+                    )
+
+                def progress_callback(percent, file_index=index, file_total=total):
+                    overall = ((file_index - 1) + (percent / 100.0)) / file_total * 100.0
+                    self.worker_queue.put(("conversion_progress", overall))
+
+                result_path = conversion.convert_media(
+                    source_path,
+                    target_format,
+                    output_dir,
+                    ffmpeg_location=ffmpeg_location(),
+                    options=options,
+                    progress_callback=progress_callback,
+                )
+                results.append(result_path)
+
+            if total > 1:
+                message = self._t("conversion_batch_done", count=len(results))
+                self.conversion_result_path = results[-1]
+                self.worker_queue.put(("conversion_batch_done", (results, message)))
+            else:
+                message = self._t("conversion_done", name=results[0].name)
+                self.conversion_result_path = results[0]
+                self.worker_queue.put(("conversion_done", (results[0], message)))
+        except conversion.ConversionError as error:
+            self.worker_queue.put(("error", str(error)))
+        except Exception as error:
+            self.worker_queue.put(("error", str(error)))
+
+
+    def _editor_ffmpeg_location(self):
+        return ffmpeg_location()
+
+    def _editor_filetypes(self):
+        extensions = ' '.join(f'*{ext}' for ext in conversion.ALL_INPUT_EXTENSIONS)
+        return [
+            (self._t('tab_editor'), extensions),
+            ('All files', '*.*'),
+        ]
+
+    def _refresh_editor_history(self):
+        if self.editor_controller is not None:
+            self.editor_controller.refresh_history()
+
+    def _editor_shortcut_undo(self, _event=None):
+        if self.section_var.get() != 'editor':
+            return
+        if self.editor_controller is not None:
+            self.editor_controller.undo()
+        return 'break'
+
+    def _editor_shortcut_redo(self, _event=None):
+        if self.section_var.get() != 'editor':
+            return
+        if self.editor_controller is not None:
+            self.editor_controller.redo()
+        return 'break'
 
     def _sync_image_export_menus(self):
         format_map = {label: value for label, value in self._image_format_menu_values()}
@@ -1973,12 +3350,18 @@ class DownloaderApp(tk.Tk):
         self._set_setting("image_export_quality", selected_quality)
 
     def _selected_image_export_format(self):
+        current = self.image_format_var.get()
+        if current in IMAGE_EXPORT_FORMATS:
+            return current
         format_map = {label: value for label, value in self._image_format_menu_values()}
-        return format_map.get(self.image_format_var.get(), "auto")
+        return format_map.get(current, "auto")
 
     def _selected_image_export_quality(self):
+        current = self.image_quality_var.get()
+        if current in IMAGE_QUALITY_LEVELS:
+            return current
         quality_map = {label: value for label, value in self._image_quality_menu_values()}
-        return quality_map.get(self.image_quality_var.get(), "media")
+        return quality_map.get(current, "media")
 
     def _remove_selected_image_item(self):
         if self.selected_image_index is None:
@@ -2205,6 +3588,7 @@ class DownloaderApp(tk.Tk):
             else:
                 status_text = self._t("hotkey_status_disabled")
         self.capture_status_var.set(status_text)
+        self._refresh_hotkey_toggle_labels()
 
         if getattr(self, "settings_hotkey_info_label", None) is not None:
             if keyboard is None:
@@ -2459,7 +3843,24 @@ class DownloaderApp(tk.Tk):
             padx=8,
             pady=8,
         )
-        self.settings_info_label.grid(row=1, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 6))
+        self.settings_info_label.grid(row=2, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 6))
+
+        source_row = tk.Frame(group, bg=WIN_FACE)
+        source_row.grid(row=1, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 6))
+        tk.Label(
+            source_row,
+            text=self._t("source_label"),
+            bg=WIN_FACE,
+            fg=WIN_BLACK,
+            font=FONT_BOLD,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.settings_search_source_menu = self._make_option_menu(
+            source_row,
+            self.search_source_var,
+            SEARCH_SOURCES,
+            command=self._on_search_source_change,
+        )
+        self.settings_search_source_menu.grid(row=0, column=1, sticky="w")
 
         tk.Label(
             group,
@@ -2467,10 +3868,10 @@ class DownloaderApp(tk.Tk):
             bg=WIN_FACE,
             fg=WIN_BLACK,
             font=FONT_BOLD,
-        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
+        ).grid(row=3, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
 
         key_row = tk.Frame(group, bg=WIN_FACE)
-        key_row.grid(row=3, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
+        key_row.grid(row=4, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
         key_row.grid_columnconfigure(0, weight=1)
 
         self.settings_key_entry = self._make_entry(key_row, self.pexels_key_var)
@@ -2499,7 +3900,7 @@ class DownloaderApp(tk.Tk):
             pady=8,
         )
         self.settings_hotkey_info_label.grid(
-            row=4, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 6)
+            row=5, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 6)
         )
 
         tk.Label(
@@ -2508,10 +3909,10 @@ class DownloaderApp(tk.Tk):
             bg=WIN_FACE,
             fg=WIN_BLACK,
             font=FONT_BOLD,
-        ).grid(row=5, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
+        ).grid(row=6, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
 
         hotkey_row = tk.Frame(group, bg=WIN_FACE)
-        hotkey_row.grid(row=6, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
+        hotkey_row.grid(row=7, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 8))
         hotkey_row.grid_columnconfigure(0, weight=1)
 
         self.settings_hotkey_entry = self._make_entry(hotkey_row, self.capture_hotkey_var)
@@ -2540,6 +3941,7 @@ class DownloaderApp(tk.Tk):
         self.settings_hotkey_entry = None
         self.settings_hotkey_save_button = None
         self.settings_hotkey_clear_button = None
+        self.settings_search_source_menu = None
 
     def _on_search_source_change(self, source):
         self._set_setting("image_search_source", source)
@@ -2557,14 +3959,17 @@ class DownloaderApp(tk.Tk):
             else:
                 self.settings_info_label.configure(text=self._t("search_source_info_flickr"))
 
-        state = "normal" if self.search_source_var.get() == "Pexels" and not self._is_busy() else "disabled"
+        key_state = "normal" if self.search_source_var.get() == "Pexels" and not self._is_busy() else "disabled"
         for widget in (
             getattr(self, "settings_key_entry", None),
             getattr(self, "settings_save_button", None),
             getattr(self, "settings_clear_button", None),
         ):
             if widget is not None:
-                widget.configure(state=state)
+                widget.configure(state=key_state)
+        source_menu = getattr(self, "settings_search_source_menu", None)
+        if source_menu is not None:
+            source_menu.configure(state="disabled" if self._is_busy() else "normal")
         self._update_capture_hotkey_state()
 
     def _quality_options_for_mode(self, mode):
@@ -2576,6 +3981,8 @@ class DownloaderApp(tk.Tk):
         for button, section in (
             (self.youtube_tab_button, "youtube"),
             (self.images_tab_button, "imagenes"),
+            (self.conversion_tab_button, "conversion"),
+            (self.editor_tab_button, "editor"),
         ):
             is_active = selected == section
             button.configure(
@@ -2583,27 +3990,49 @@ class DownloaderApp(tk.Tk):
                 fg=WIN_ACCENT_TEXT if is_active else WIN_BLACK,
                 activebackground=WIN_TAB_ACTIVE if is_active else WIN_BUTTON_ACTIVE,
                 activeforeground=WIN_ACCENT_TEXT if is_active else WIN_BLACK,
+                highlightbackground=WIN_EDGE,
+                highlightthickness=0 if is_active else 1,
+                relief="flat" if is_active else "solid",
             )
 
     def _set_section(self, section):
         self.section_var.set(section)
         self._set_tab_button_state()
 
-        if section == "youtube":
-            self.youtube_frame.grid()
-            self.images_frame.grid_remove()
-            if not self._is_busy():
-                self.status_var.set(self._t("ready"))
+        panels = {
+            "youtube": self.youtube_frame,
+            "imagenes": self.images_frame,
+            "conversion": self.conversion_frame,
+            "editor": self.editor_frame,
+        }
+        for name, panel in panels.items():
+            if name == section:
+                panel.grid()
+            else:
+                panel.grid_remove()
+
+        if section != "conversion":
+            self._conversion_disable_mousewheel()
+        elif hasattr(self, "conversion_scroll_canvas"):
+            self.after_idle(self._conversion_refresh_scroll)
+
+        if not self._is_busy():
+            self.status_var.set(self._t("ready"))
+            if section == "youtube":
                 self.detail_var.set(self._t("section_ready_youtube"))
-        else:
-            self.images_frame.grid()
-            self.youtube_frame.grid_remove()
-            if not self._is_busy():
-                self.status_var.set(self._t("ready"))
+            elif section == "imagenes":
                 self.detail_var.set(self._t("section_ready_images"))
+            elif section == "conversion":
+                self.detail_var.set(self._t("section_ready_conversion"))
+            elif section == "editor":
+                self.detail_var.set(self._t("section_ready_editor"))
+                self._refresh_editor_history()
+            else:
+                self.detail_var.set(self._t("editor_coming_text"))
+
         if section == "youtube":
             self._refresh_youtube_batch_summary()
-        else:
+        elif section == "imagenes":
             self._refresh_batch_summary()
 
     def _update_quality_options(self, mode):
@@ -2631,7 +4060,14 @@ class DownloaderApp(tk.Tk):
         return self.current_quality_map.get(label, self._selected_quality_value())
 
     def _pick_folder(self, target):
-        current = self.output_var.get() if target == "youtube" else self.image_output_var.get()
+        if target == "youtube":
+            current = self.output_var.get()
+        elif target == "conversion":
+            current = self.conversion_output_var.get()
+        elif target == "editor":
+            current = self.editor_folder_var.get()
+        else:
+            current = self.image_output_var.get()
         selected = filedialog.askdirectory(initialdir=current or str(DEFAULT_FISSILEKIT_ROOT))
         if not selected:
             return
@@ -2639,20 +4075,29 @@ class DownloaderApp(tk.Tk):
         if target == "youtube":
             self.output_var.set(selected)
             self._set_setting("video_output_folder", selected)
+        elif target == "conversion":
+            self.conversion_output_var.set(selected)
+            self._set_setting("conversion_output_folder", selected)
+        elif target == "editor":
+            self.editor_folder_var.set(selected)
+            self._set_setting("editor_folder", selected)
+            self._refresh_editor_history()
         else:
             self.image_output_var.set(selected)
             self._set_setting("image_output_folder", selected)
 
     def _append_youtube_batch_urls(self, text):
         added = 0
+        existing = {self._youtube_batch_item_url(item) for item in self.youtube_batch_urls}
         for line in text.splitlines():
             line = line.strip()
             if not line:
                 continue
             for url in self._extract_urls(line) or [line]:
                 cleaned = url.strip()
-                if cleaned and cleaned not in self.youtube_batch_urls:
-                    self.youtube_batch_urls.append(cleaned)
+                if cleaned and cleaned not in existing:
+                    self.youtube_batch_urls.append(self._default_youtube_batch_item(cleaned))
+                    existing.add(cleaned)
                     added += 1
         if added:
             self._refresh_youtube_batch_listbox()
@@ -2677,10 +4122,14 @@ class DownloaderApp(tk.Tk):
         if self._is_busy():
             return
         self.youtube_batch_urls.clear()
+        self.selected_youtube_batch_index = None
         self._refresh_youtube_batch_listbox()
 
+    def _collect_youtube_batch_items(self):
+        return self._clone_youtube_batch_items(self.youtube_batch_urls)
+
     def _collect_youtube_batch_urls(self):
-        return list(self.youtube_batch_urls)
+        return [item["url"] for item in self._collect_youtube_batch_items()]
 
     def _paste_clipboard_to_youtube_batch(self, show_empty_message=True):
         try:
@@ -2820,53 +4269,79 @@ class DownloaderApp(tk.Tk):
     def _is_busy(self):
         return self.active_thread is not None and self.active_thread.is_alive()
 
+    def _configure_widget_state(self, widget, state):
+        if widget is None:
+            return
+        try:
+            widget.configure(state=state)
+        except tk.TclError:
+            pass
+
     def _set_busy(self, busy):
         state = "disabled" if busy else "normal"
 
         for widget in (
             self.youtube_tab_button,
             self.images_tab_button,
+            self.conversion_tab_button,
+            self.editor_tab_button,
             self.settings_button,
             self.download_button,
             self.youtube_add_button,
             self.youtube_load_file_button,
             self.youtube_clear_button,
             self.youtube_batch_download_button,
-            self.youtube_autopaste_toggle,
-            self.youtube_open_folder_button,
             self.browse_button,
             self.url_entry,
             self.folder_entry,
             self.quality_menu,
-            self.video_radio,
-            self.audio_radio,
-            self.search_source_menu,
             self.list_entry,
             self.add_list_item_button,
             self.load_query_file_button,
             self.search_queries_button,
             self.clear_list_button,
-            self.paste_now_button,
             self.images_autopaste_toggle,
             self.image_format_menu,
             self.image_quality_menu,
-            self.image_remove_button,
-            self.image_replace_button,
             self.image_folder_entry,
             self.image_browse_button,
-            self.image_open_folder_button,
             self.image_download_button,
+            self.youtube_paste_button,
+            self.batch_url_entry,
+            self.batch_format_menu,
+            self.batch_quality_menu,
+            self.conversion_pick_button,
+            self.conversion_batch_button,
+            self.conversion_clear_source_button,
+            self.conversion_run_button,
+            self.conversion_open_result_button,
+            self.conversion_folder_entry,
+            self.conversion_browse_button,
+            self.conversion_open_folder_button,
         ):
-            widget.configure(state=state)
+            self._configure_widget_state(widget, state)
+
+        for button in getattr(self, "conversion_format_buttons", {}).values():
+            self._configure_widget_state(button, state)
+
+        for button in getattr(self, "mode_toggle_buttons", {}).values():
+            self._configure_widget_state(button, state)
 
         if hasattr(self, "youtube_batch_listbox"):
-            self.youtube_batch_listbox.configure(state=state)
+            self._configure_widget_state(self.youtube_batch_listbox, state)
         if hasattr(self, "image_listbox"):
-            self.image_listbox.configure(state=state)
+            self._configure_widget_state(self.image_listbox, state)
         if not busy:
             self._apply_search_source_state()
+            self._update_youtube_batch_side_controls()
+            self._update_image_export_controls()
+            self._update_conversion_format_buttons()
         else:
             self._apply_search_source_state()
+            self._update_youtube_batch_side_controls()
+            self._update_image_export_controls()
+            self._update_conversion_format_buttons()
+        self._update_conversion_batch_window_controls()
 
     def _selected_quality_value(self):
         return self.current_quality_map.get(self.quality_var.get(), "best")
@@ -2895,13 +4370,14 @@ class DownloaderApp(tk.Tk):
         self._start_youtube_download_urls([url], batch_mode=False)
 
     def _start_youtube_batch_download(self):
-        urls = self._collect_youtube_batch_urls()
-        if not urls:
+        items = self._collect_youtube_batch_items()
+        if not items:
             messagebox.showwarning(self._app_title(), self._t("youtube_batch_empty_warning"))
             return
-        self._start_youtube_download_urls(urls, batch_mode=True)
+        self._save_youtube_batch_item_options()
+        self._start_youtube_download_urls(items, batch_mode=True)
 
-    def _start_youtube_download_urls(self, urls, batch_mode):
+    def _start_youtube_download_urls(self, urls_or_items, batch_mode):
         output_folder = Path(self.output_var.get().strip() or DEFAULT_YOUTUBE_FOLDER)
         mode = self.mode_var.get()
         quality_label = self.quality_var.get()
@@ -2916,19 +4392,19 @@ class DownloaderApp(tk.Tk):
         self._set_busy(True)
 
         if batch_mode:
+            items = urls_or_items
             self.status_var.set(self._t("preparing_batch"))
-            self.detail_var.set(f"{mode} | {quality_label} | Links: {len(urls)}")
-            self._log(f"Inicio de lote YouTube: {len(urls)} link(s)")
-            self._log(f"Modo: {mode} | Calidad: {quality_label}")
+            self._log(f"Inicio de lote YouTube: {len(items)} link(s)")
+            self._log(f"Modo: {mode}")
             target = self._download_youtube_batch_worker
-            args = (urls, mode, quality_value, quality_label, output_folder)
+            args = (items, mode, output_folder)
         else:
+            url = urls_or_items[0] if isinstance(urls_or_items, list) else urls_or_items
             self.status_var.set(self._t("preparing_download"))
-            self.detail_var.set(f"{mode} | {quality_label} | Destino: {output_folder}")
-            self._log(f"Inicio de descarga YouTube: {urls[0]}")
+            self._log(f"Inicio de descarga YouTube: {url}")
             self._log(f"Modo: {mode} | Calidad: {quality_label}")
             target = self._download_youtube_worker
-            args = (urls[0], mode, quality_value, quality_label, output_folder)
+            args = (url, mode, quality_value, quality_label, output_folder)
 
         self.active_thread = threading.Thread(target=target, args=args, daemon=True)
         self.active_thread.start()
@@ -2959,6 +4435,7 @@ class DownloaderApp(tk.Tk):
         ffmpeg_available,
         hook,
         audio_format=None,
+        merge_output_format="mp4",
     ):
         options = {
             "noplaylist": True,
@@ -2972,7 +4449,7 @@ class DownloaderApp(tk.Tk):
         if mode == "Video":
             options["format"] = self._build_video_format(quality_value, ffmpeg_available)
             if ffmpeg_available:
-                options["merge_output_format"] = "mp4"
+                options["merge_output_format"] = merge_output_format
         else:
             options["format"] = audio_format or audio_format_candidates(ffmpeg_available)[0]
             if ffmpeg_available:
@@ -3016,11 +4493,25 @@ class DownloaderApp(tk.Tk):
                 )
 
     def _download_youtube_item(
-        self, url, mode, quality_value, quality_label, output_folder, ffmpeg_available, hook
+        self,
+        url,
+        mode,
+        quality_value,
+        quality_label,
+        output_folder,
+        ffmpeg_available,
+        hook,
+        merge_output_format="mp4",
     ):
         if mode != "Audio":
             options = self._build_youtube_options(
-                mode, quality_value, quality_label, output_folder, ffmpeg_available, hook
+                mode,
+                quality_value,
+                quality_label,
+                output_folder,
+                ffmpeg_available,
+                hook,
+                merge_output_format=merge_output_format,
             )
             with YoutubeDL(options) as ydl:
                 info = ydl.extract_info(url, download=True)
@@ -3088,6 +4579,7 @@ class DownloaderApp(tk.Tk):
                 url, mode, quality_value, quality_label, output_folder, has_ffmpeg, hook
             )
             self.worker_queue.put(("log", f"Descarga completada: {title}"))
+            self.worker_queue.put(("last_action", f"Descargo: {title}"))
             self.worker_queue.put(("status", "Descarga terminada."))
             self.worker_queue.put(
                 ("detail", f"{mode} | {quality_label} | Guardado en {output_folder}")
@@ -3099,16 +4591,20 @@ class DownloaderApp(tk.Tk):
         except Exception as error:
             self.worker_queue.put(("error", f"Ocurrio un error inesperado: {strip_ansi(error)}"))
 
-    def _download_youtube_batch_worker(self, urls, mode, quality_value, quality_label, output_folder):
+    def _download_youtube_batch_worker(self, items, mode, output_folder):
         has_ffmpeg = is_ffmpeg_available()
-        self._log_youtube_mode_details(mode, quality_value, quality_label, has_ffmpeg)
-
-        total = len(urls)
+        total = len(items)
         downloaded_count = 0
         failed = []
 
         try:
-            for index, url in enumerate(urls, start=1):
+            for index, item in enumerate(items, start=1):
+                url = item["url"]
+                quality_value = item.get("quality_value", "best")
+                quality_label = item.get("quality_label", self._t("quality_best"))
+                merge_format = item.get("format", "mp4")
+                self._log_youtube_mode_details(mode, quality_value, quality_label, has_ffmpeg)
+
                 self.worker_queue.put(("status", f"Preparando {index}/{total}..."))
                 self.worker_queue.put(("detail", url))
 
@@ -3146,9 +4642,11 @@ class DownloaderApp(tk.Tk):
                         output_folder,
                         has_ffmpeg,
                         hook,
+                        merge_output_format=merge_format,
                     )
                     downloaded_count += 1
                     self.worker_queue.put(("log", f"Descarga completada {index}/{total}: {title}"))
+                    self.worker_queue.put(("last_action", f"Descargo: {title}"))
                 except DownloadError as error:
                     failed.append((url, error))
                     self.worker_queue.put(("log", f"Fallo {index}/{total}: {url} | {error}"))
@@ -3785,6 +5283,7 @@ class DownloaderApp(tk.Tk):
                     )
                     downloaded_count += 1
                     self.worker_queue.put(("log", f"Guardada: {file_path.name}"))
+                    self.worker_queue.put(("last_action", f"Guardada: {file_path.name}"))
                 except Exception as error:
                     failed.append((item["title"], error))
                     self.worker_queue.put(("log", f"Fallo con {item['title']}: {error}"))
@@ -3801,7 +5300,7 @@ class DownloaderApp(tk.Tk):
 
             self.worker_queue.put(("status", "Descarga terminada."))
             self.worker_queue.put(
-                ("detail", f"{downloaded_count}/{total} imagenes guardadas en {output_folder}")
+                ("last_action", f"Guardadas {downloaded_count}/{total} imagenes")
             )
             self.worker_queue.put(
                 ("done", f"Se guardaron {downloaded_count} imagen(es) en: {output_folder}")
@@ -3822,6 +5321,8 @@ class DownloaderApp(tk.Tk):
                     self.status_var.set(payload)
                 elif kind == "detail":
                     self.detail_var.set(payload)
+                elif kind == "last_action":
+                    self._set_last_action(payload)
                 elif kind == "add_items":
                     self._add_batch_items(payload)
                 elif kind == "preview_loaded":
@@ -3858,6 +5359,50 @@ class DownloaderApp(tk.Tk):
                                     hotkey=self._format_hotkey_label(payload),
                                 )
                             )
+                elif kind == "conversion_progress":
+                    self._set_conversion_progress(payload)
+                elif kind == "conversion_preview":
+                    target, preview = payload
+                    if target == "source":
+                        self._set_conversion_source_preview(preview)
+                    else:
+                        self._set_conversion_result_preview(preview)
+                elif kind == "conversion_done":
+                    result_path, message = payload
+                    self.active_thread = None
+                    self._set_busy(False)
+                    self._set_conversion_progress(100)
+                    self.conversion_result_var.set(str(result_path))
+                    self._configure_widget_state(self.conversion_open_result_button, "normal")
+                    self.status_var.set(self._t("ready"))
+                    self.detail_var.set(message)
+                    self._set_last_action(message)
+                    self._log(message)
+                    threading.Thread(
+                        target=self._load_conversion_preview,
+                        args=(str(result_path), "result"),
+                        daemon=True,
+                    ).start()
+                elif kind == "conversion_batch_done":
+                    results, message = payload
+                    self.active_thread = None
+                    self._set_busy(False)
+                    self._set_conversion_progress(100)
+                    self.conversion_result_var.set(
+                        f"{results[-1].name} (+{len(results) - 1})"
+                        if len(results) > 1
+                        else str(results[-1])
+                    )
+                    self._configure_widget_state(self.conversion_open_result_button, "normal")
+                    self.status_var.set(self._t("ready"))
+                    self.detail_var.set(message)
+                    self._set_last_action(message)
+                    self._log(message)
+                    threading.Thread(
+                        target=self._load_conversion_preview,
+                        args=(str(results[-1]), "result"),
+                        daemon=True,
+                    ).start()
                 elif kind == "operation_complete":
                     self.active_thread = None
                     self._set_busy(False)
@@ -3872,6 +5417,7 @@ class DownloaderApp(tk.Tk):
                 elif kind == "error":
                     self.active_thread = None
                     self._set_busy(False)
+                    self._set_conversion_progress(0)
                     self.status_var.set(self._t("operation_failed_status"))
                     self.detail_var.set(self._t("operation_failed_detail"))
                     self._log(payload)
@@ -3883,13 +5429,20 @@ class DownloaderApp(tk.Tk):
 
     def _on_close(self):
         self.is_closing = True
+        if self.log_window is not None and self.log_window.winfo_exists():
+            self.log_window.destroy()
+        if self.conversion_batch_window is not None and self.conversion_batch_window.winfo_exists():
+            self.conversion_batch_window.destroy()
+            self.conversion_batch_window = None
         self._close_search_settings()
         self._unregister_capture_hotkey()
         self.destroy()
 
 
 if __name__ == "__main__":
+    DEFAULT_FISSILEKIT_ROOT.mkdir(parents=True, exist_ok=True)
     DEFAULT_YOUTUBE_FOLDER.mkdir(parents=True, exist_ok=True)
     DEFAULT_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)
+    DEFAULT_CONVERSION_FOLDER.mkdir(parents=True, exist_ok=True)
     app = DownloaderApp()
     app.mainloop()

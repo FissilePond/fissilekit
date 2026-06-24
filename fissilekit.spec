@@ -14,6 +14,7 @@ datas = [
     (str(root / "fissilepondlogo.png"), "."),
     (str(root / "Fissilepond logo png.png"), "."),
     (str(root / "settings.json.example"), "."),
+    (str(root / "assets" / "conversion_icons"), "assets/conversion_icons"),
 ]
 
 binaries = []
