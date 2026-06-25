@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -46,6 +47,50 @@ def _draw_rotate(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, in
         ],
         fill=color,
     )
+
+
+def _draw_rotate_left(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    draw.arc([size * 0.18, size * 0.18, size * 0.82, size * 0.82], start=200, end=340, fill=color, width=w)
+    draw.polygon(
+        [
+            (size * 0.22, size * 0.42),
+            (size * 0.36, size * 0.30),
+            (size * 0.36, size * 0.54),
+        ],
+        fill=color,
+    )
+
+
+def _draw_rotate_right(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    draw.arc([size * 0.18, size * 0.18, size * 0.82, size * 0.82], start=20, end=160, fill=color, width=w)
+    draw.polygon(
+        [
+            (size * 0.78, size * 0.42),
+            (size * 0.64, size * 0.30),
+            (size * 0.64, size * 0.54),
+        ],
+        fill=color,
+    )
+
+
+def _draw_flip_h(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    mid = size / 2
+    draw.rectangle([size * 0.2, size * 0.26, size * 0.8, size * 0.74], outline=color, width=w)
+    draw.polygon([(size * 0.34, mid), (size * 0.24, size * 0.38), (size * 0.24, size * 0.62)], fill=color)
+    draw.polygon([(size * 0.66, mid), (size * 0.76, size * 0.38), (size * 0.76, size * 0.62)], fill=color)
+    draw.line([(mid, size * 0.22), (mid, size * 0.78)], fill=color, width=max(1, w // 2))
+
+
+def _draw_flip_v(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    mid = size / 2
+    draw.rectangle([size * 0.26, size * 0.2, size * 0.74, size * 0.8], outline=color, width=w)
+    draw.polygon([(mid, size * 0.34), (size * 0.38, size * 0.24), (size * 0.62, size * 0.24)], fill=color)
+    draw.polygon([(mid, size * 0.66), (size * 0.38, size * 0.76), (size * 0.62, size * 0.76)], fill=color)
+    draw.line([(size * 0.22, mid), (size * 0.78, mid)], fill=color, width=max(1, w // 2))
 
 
 def _draw_resize(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
@@ -116,10 +161,95 @@ def _draw_eraser(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, in
     draw.line([(size * 0.18, size * 0.62), (size * 0.82, size * 0.62)], fill=(0, 0, 0, 180), width=max(1, size // 18))
 
 
+def _draw_eyedropper(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 12)
+    draw.line([(size * 0.78, size * 0.18), (size * 0.3, size * 0.66)], fill=color, width=w)
+    draw.polygon(
+        [
+            (size * 0.24, size * 0.7),
+            (size * 0.34, size * 0.8),
+            (size * 0.2, size * 0.84),
+        ],
+        fill=color,
+    )
+    draw.ellipse([size * 0.58, size * 0.12, size * 0.84, size * 0.38], outline=color, width=max(1, w // 2))
+
+
 def _draw_shape(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
     pad = size * 0.22
     w = max(2, size // 14)
     draw.rectangle([pad, pad, size - pad, size - pad], outline=color, width=w)
+
+
+def _draw_shape_line(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 12)
+    draw.line([(size * 0.18, size * 0.82), (size * 0.82, size * 0.18)], fill=color, width=w)
+
+
+def _draw_shape_curve(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 12)
+    draw.line([(size * 0.16, size * 0.72), (size * 0.42, size * 0.24), (size * 0.84, size * 0.62)], fill=color, width=w)
+
+
+def _draw_shape_rect(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    pad = size * 0.22
+    w = max(2, size // 14)
+    draw.rectangle([pad, pad, size - pad, size - pad], outline=color, width=w)
+
+
+def _draw_shape_circle(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    pad = size * 0.2
+    w = max(2, size // 14)
+    draw.ellipse([pad, pad, size - pad, size - pad], outline=color, width=w)
+
+
+def _draw_shape_oval(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    pad_x = size * 0.14
+    pad_y = size * 0.26
+    w = max(2, size // 14)
+    draw.ellipse([pad_x, pad_y, size - pad_x, size - pad_y], outline=color, width=w)
+
+
+def _draw_shape_star(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    cx, cy = size * 0.5, size * 0.52
+    points = []
+    outer = size * 0.34
+    inner = outer * 0.4
+    for index in range(10):
+        angle = -math.pi / 2 + (math.pi * index / 5)
+        radius = outer if index % 2 == 0 else inner
+        points.append((cx + radius * math.cos(angle), cy + radius * math.sin(angle)))
+    draw.polygon(points, outline=color, width=w)
+
+
+def _draw_shape_triangle(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    draw.polygon(
+        [(size * 0.5, size * 0.18), (size * 0.82, size * 0.78), (size * 0.18, size * 0.78)],
+        outline=color,
+        width=w,
+    )
+
+
+def _draw_shape_pentagon(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    cx, cy, r = size * 0.5, size * 0.52, size * 0.3
+    points = []
+    for index in range(5):
+        angle = -math.pi / 2 + (2 * math.pi * index / 5)
+        points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    draw.polygon(points, outline=color, width=w)
+
+
+def _draw_shape_hexagon(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
+    w = max(2, size // 14)
+    cx, cy, r = size * 0.5, size * 0.52, size * 0.3
+    points = []
+    for index in range(6):
+        angle = -math.pi / 2 + (2 * math.pi * index / 6)
+        points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    draw.polygon(points, outline=color, width=w)
 
 
 def _draw_text(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int, int]) -> None:
@@ -173,12 +303,26 @@ def _draw_save(draw: ImageDraw.ImageDraw, size: int, color: tuple[int, int, int,
 _DRAWERS = {
     "crop": _draw_crop,
     "rotate": _draw_rotate,
+    "rotate_left": _draw_rotate_left,
+    "rotate_right": _draw_rotate_right,
+    "flip_h": _draw_flip_h,
+    "flip_v": _draw_flip_v,
     "resize": _draw_resize,
     "draw": _draw_pencil,
     "pencil": _draw_pencil,
     "bucket": _draw_bucket,
+    "eyedropper": _draw_eyedropper,
     "eraser": _draw_eraser,
     "shape": _draw_shape,
+    "shape_line": _draw_shape_line,
+    "shape_curve": _draw_shape_curve,
+    "shape_rect": _draw_shape_rect,
+    "shape_oval": _draw_shape_oval,
+    "shape_circle": _draw_shape_circle,
+    "shape_triangle": _draw_shape_triangle,
+    "shape_pentagon": _draw_shape_pentagon,
+    "shape_hexagon": _draw_shape_hexagon,
+    "shape_star": _draw_shape_star,
     "text": _draw_text,
     "undo": _draw_undo,
     "redo": _draw_redo,
