@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import subprocess
 import sys
 import tempfile
@@ -126,36 +127,88 @@ def _extract_video_thumbnail(path: Path, ffmpeg: str) -> Image.Image | None:
             output_path.unlink(missing_ok=True)
 
 
+def _rasterize_svg(source: Path, size: int = 512) -> Image.Image | None:
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
+
+    if fitz is not None:
+        try:
+            document = fitz.open(str(source))
+            page = document[0]
+            rect = page.rect
+            if rect.width <= 0 or rect.height <= 0:
+                return None
+            scale = size / max(rect.width, rect.height)
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=True)
+            return Image.open(io.BytesIO(pixmap.tobytes("png"))).convert("RGBA")
+        except Exception:
+            pass
+
+    ffmpeg = conversion.find_ffmpeg(None)
+    if not ffmpeg:
+        return None
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
+        raster_path = Path(handle.name)
+    try:
+        command = [
+            ffmpeg,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(source),
+            str(raster_path),
+        ]
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            creationflags=creationflags,
+        )
+        if result.returncode != 0 or not raster_path.is_file():
+            return None
+        with Image.open(raster_path) as frame:
+            return frame.convert("RGBA")
+    finally:
+        if raster_path.exists():
+            raster_path.unlink(missing_ok=True)
+
+
+def load_raster_image(
+    path: Path | str,
+    ffmpeg_location: str | None = None,
+    *,
+    output_size: tuple[int, int] | None = None,
+    supersample: int = 4,
+) -> Image.Image | None:
+    source = Path(path)
+    if not source.is_file():
+        return None
+    if source.suffix.lower() == ".svg":
+        if output_size is not None:
+            width, height = output_size
+            render_size = max(width, height) * max(1, supersample)
+            rendered = _rasterize_svg(source, render_size)
+            if rendered is None:
+                return None
+            return rendered.resize((width, height), Image.Resampling.LANCZOS)
+        return _rasterize_svg(source, 1024)
+
+    with Image.open(source) as opened:
+        if getattr(opened, "n_frames", 1) > 1:
+            opened.seek(0)
+        return opened.convert("RGBA")
+
+
 def _load_image_preview(path: Path, ffmpeg_location: str | None) -> Image.Image:
     if path.suffix.lower() == ".svg":
-        ffmpeg = conversion.find_ffmpeg(ffmpeg_location)
-        if ffmpeg:
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
-                raster_path = Path(handle.name)
-            try:
-                command = [
-                    ffmpeg,
-                    "-y",
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-i",
-                    str(path),
-                    str(raster_path),
-                ]
-                creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-                result = subprocess.run(
-                    command,
-                    capture_output=True,
-                    text=True,
-                    creationflags=creationflags,
-                )
-                if result.returncode == 0 and raster_path.is_file():
-                    with Image.open(raster_path) as frame:
-                        return _fit_preview(frame.convert("RGBA"))
-            finally:
-                if raster_path.exists():
-                    raster_path.unlink(missing_ok=True)
+        frame = load_raster_image(path, ffmpeg_location)
+        if frame is not None:
+            return _fit_preview(frame)
         return placeholder_for_kind("image")
 
     with Image.open(path) as opened:

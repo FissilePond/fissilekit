@@ -14,20 +14,44 @@ import editor_icons
 import editor_ops
 import editor_cursors
 import editor_text
+import ui_fonts
 
-EDITOR_THEME = {
-    "bg": "#151515",
-    "panel": "#202020",
-    "surface": "#2a2a2a",
-    "border": "#3a3a3a",
-    "text": "#e6e6e6",
-    "muted": "#9ca3af",
-    "accent": "#60a5fa",
-    "canvas": "#121212",
-    "btn": "#303030",
-    "btn_active": "#454545",
-    "btn_text": "#f3f4f6",
+EDITOR_THEMES = {
+    "dark": {
+        "bg": "#151515",
+        "panel": "#202020",
+        "surface": "#2a2a2a",
+        "border": "#3a3a3a",
+        "text": "#e6e6e6",
+        "muted": "#9ca3af",
+        "accent": "#60a5fa",
+        "canvas": "#121212",
+        "btn": "#303030",
+        "btn_active": "#454545",
+        "btn_text": "#f3f4f6",
+    },
+    "light": {
+        "bg": "#ececec",
+        "panel": "#ffffff",
+        "surface": "#fafafa",
+        "border": "#d4d4d4",
+        "text": "#111111",
+        "muted": "#6b6b6b",
+        "accent": "#111111",
+        "canvas": "#e4e4e4",
+        "btn": "#ffffff",
+        "btn_active": "#f0f0f0",
+        "btn_text": "#111111",
+    },
 }
+
+EDITOR_THEME = dict(EDITOR_THEMES["dark"])
+
+
+def apply_editor_theme(app_theme: str) -> None:
+    global EDITOR_THEME
+    EDITOR_THEME = dict(EDITOR_THEMES.get(app_theme, EDITOR_THEMES["dark"]))
+    editor_icons.clear_icon_cache()
 
 
 class EditorController:
@@ -60,6 +84,7 @@ class EditorController:
         self.crop_mode_buttons: dict[str, tk.Button] = {}
         self.crop_aspect_buttons: dict[str, tk.Button] = {}
         self.draw_mode_buttons: dict[str, tk.Button] = {}
+        self.eraser_mode_buttons: dict[str, tk.Button] = {}
         self._draw_return_mode = "pencil"
         self._eyedropper_feedback_after_id = None
         self._crop_interacting = False
@@ -116,18 +141,27 @@ class EditorController:
         self._text_drag_size_origin = 0.0
         self._text_drag_object_origin: tuple[float, float] | None = None
         self._text_pending_move_id: str | None = None
+        self._text_suppress_new_on_next_click = False
         self._text_format_buttons: dict[str, tk.Button] = {}
         self._text_border_row: tk.Frame | None = None
         self.text_color = "#ffffff"
         self.text_border_color = "#000000"
         self.magic_color = None
         self.draw_color = "#e74c3c"
+        self._video_scrub_after_id = None
+        self._video_timeline_updating = False
+        self._last_canvas_size: tuple[int, int] = (0, 0)
         self._widgets: dict[str, tk.Variable] = {}
 
     def t(self, key, **kwargs):
         return self.app._t(key, **kwargs)
 
+    def _ui_font(self, size, *styles):
+        family = getattr(self.app, "ui_font_family", "Calibri")
+        return ui_fonts.font_tuple(family, size, *styles)
+
     def build_panel(self, parent):
+        apply_editor_theme(self.app.theme_var.get())
         frame = tk.Frame(parent, bg=EDITOR_THEME["bg"])
         frame.grid_columnconfigure(0, weight=0, minsize=self.HISTORY_WIDTH)
         frame.grid_columnconfigure(1, weight=1)
@@ -141,7 +175,7 @@ class EditorController:
             bd=1,
             relief="solid",
             highlightbackground=EDITOR_THEME["border"],
-            font=self.app.FONT_NORMAL if hasattr(self.app, "FONT_NORMAL") else ("Segoe UI", 10),
+            font=self.app.FONT_NORMAL,
             labelanchor="n",
         )
         history.grid(row=0, column=0, sticky="ns", padx=(0, 8))
@@ -195,6 +229,47 @@ class EditorController:
         workspace.grid_rowconfigure(1, weight=1)
         workspace.grid_columnconfigure(0, weight=1)
 
+        self.timeline_frame = tk.Frame(workspace, bg=EDITOR_THEME["bg"])
+        self.timeline_frame.grid(row=2, column=0, sticky="ew", pady=(0, 6))
+        self.timeline_frame.grid_columnconfigure(1, weight=1)
+        self.timeline_frame.grid_remove()
+
+        self._video_time_var = tk.DoubleVar(value=0.0)
+
+        timeline_controls = tk.Frame(self.timeline_frame, bg=EDITOR_THEME["bg"])
+        timeline_controls.grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self._button(
+            timeline_controls,
+            "◀",
+            lambda: self._step_video_frame(-1),
+            width=3,
+        ).pack(side="left", padx=(0, 2))
+        self._button(
+            timeline_controls,
+            "▶",
+            lambda: self._step_video_frame(1),
+            width=3,
+        ).pack(side="left")
+
+        self.video_timeline = ttk.Scale(
+            self.timeline_frame,
+            from_=0.0,
+            to=1.0,
+            orient="horizontal",
+            variable=self._video_time_var,
+            command=self._on_video_timeline_scrub,
+        )
+        self.video_timeline.grid(row=0, column=1, sticky="ew")
+
+        self.video_time_label = tk.Label(
+            self.timeline_frame,
+            text="00:00 / 00:00",
+            bg=EDITOR_THEME["bg"],
+            fg=EDITOR_THEME["muted"],
+            font=self._ui_font(9),
+        )
+        self.video_time_label.grid(row=0, column=2, sticky="e", padx=(8, 0))
+
         self.toolbar_host = tk.Frame(workspace, bg=EDITOR_THEME["bg"])
         self.toolbar_host.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         self.toolbar_host.grid_columnconfigure(0, weight=1)
@@ -212,6 +287,7 @@ class EditorController:
             ("rotate", "editor_tool_rotate"),
             ("resize", "editor_tool_resize"),
             ("draw", "editor_tool_draw"),
+            ("eraser", "editor_tool_eraser"),
             ("shape", "editor_tool_shapes"),
             ("text", "editor_tool_text"),
         )
@@ -276,7 +352,7 @@ class EditorController:
         self._hide_crop_confirm()
 
         export_row = tk.Frame(workspace, bg=EDITOR_THEME["bg"])
-        export_row.grid(row=2, column=0, sticky="ew")
+        export_row.grid(row=3, column=0, sticky="ew")
         export_row.grid_columnconfigure(0, weight=1)
         self.save_button = self._button(export_row, self.t("editor_finish"), self.save, width=12, primary=True)
         self.save_button.grid(row=0, column=1, sticky="e")
@@ -316,6 +392,7 @@ class EditorController:
         self._widgets["text_strikethrough"] = tk.BooleanVar(value=False)
         self._widgets["text_border"] = tk.BooleanVar(value=False)
         self._widgets["text_border_width"] = tk.IntVar(value=2)
+        self._widgets["video_time"] = self._video_time_var
 
     def var(self, name):
         return self._widgets[name]
@@ -332,7 +409,7 @@ class EditorController:
                 text=text,
                 bg=EDITOR_THEME["surface"],
                 fg=EDITOR_THEME["text"],
-                font=("Segoe UI", 9),
+                font=self._ui_font(9),
                 padx=6,
                 pady=3,
             ).pack()
@@ -385,7 +462,7 @@ class EditorController:
             activeforeground=EDITOR_THEME["btn_text"],
             relief="flat",
             bd=0,
-            font=("Segoe UI", 9),
+            font=self._ui_font(9),
             padx=6,
             pady=4,
             cursor="hand2",
@@ -411,6 +488,62 @@ class EditorController:
                 bg=EDITOR_THEME["btn"],
             )
 
+    _TEXT_FORMAT_STYLES = {
+        "bold": ("bold",),
+        "italic": ("italic",),
+        "underline": ("underline",),
+        "strikethrough": ("overstrike",),
+    }
+
+    def _text_format_button(self, parent, key: str, label: str):
+        button = tk.Button(
+            parent,
+            text=label,
+            command=lambda k=key: self._toggle_text_style(k),
+            width=3,
+            bg=EDITOR_THEME["btn"],
+            fg=EDITOR_THEME["btn_text"],
+            activebackground=EDITOR_THEME["btn_active"],
+            activeforeground=EDITOR_THEME["btn_text"],
+            relief="flat",
+            bd=0,
+            font=self._ui_font(10, *self._TEXT_FORMAT_STYLES[key]),
+            padx=6,
+            pady=4,
+            cursor="hand2",
+            highlightthickness=2,
+            highlightbackground=EDITOR_THEME["bg"],
+            highlightcolor=EDITOR_THEME["accent"],
+        )
+        return button
+
+    def _set_text_tool_cursor(self, cursor: str):
+        if self.active_tool == "text":
+            self.canvas.configure(cursor=cursor)
+
+    def _update_text_hover_cursor(self, event):
+        if self.active_tool != "text" or self._text_editing_id or self._text_dragging:
+            return
+        point = self.canvas_point(event)
+        if point is None:
+            self._set_text_tool_cursor("xterm")
+            return
+        selected = self._selected_text_object()
+        if selected is not None:
+            handle = editor_text.hit_text_handle(selected, point[0], point[1])
+            if handle is not None:
+                self._set_text_tool_cursor(editor_text.TEXT_HANDLE_CURSORS.get(handle, "sizing"))
+                return
+            x0, y0, x1, y1 = editor_text.measure_text_object(selected)
+            if x0 - 6 <= point[0] <= x1 + 6 and y0 - 6 <= point[1] <= y1 + 6:
+                self._set_text_tool_cursor("fleur")
+                return
+        hit = editor_text.find_object_at(self.session.text_objects, point[0], point[1])
+        if hit is not None:
+            self._set_text_tool_cursor("fleur")
+            return
+        self._set_text_tool_cursor("xterm")
+
     def _entry(self, parent, textvariable):
         return tk.Entry(
             parent,
@@ -423,11 +556,11 @@ class EditorController:
             highlightthickness=1,
             highlightbackground=EDITOR_THEME["border"],
             highlightcolor=EDITOR_THEME["accent"],
-            font=("Segoe UI", 9),
+            font=self._ui_font(9),
         )
 
     def _label(self, parent, text):
-        return tk.Label(parent, text=text, bg=EDITOR_THEME["bg"], fg=EDITOR_THEME["muted"], font=("Segoe UI", 9))
+        return tk.Label(parent, text=text, bg=EDITOR_THEME["bg"], fg=EDITOR_THEME["muted"], font=self._ui_font(9))
 
     def _option(self, parent, variable, values, width=10):
         menu = tk.OptionMenu(parent, variable, *values)
@@ -478,11 +611,11 @@ class EditorController:
             if not self.session.is_cropable():
                 messagebox.showinfo(self.app._app_title(), self.t("editor_crop_no_media"))
                 return
-        elif not self.session.is_editable_image() and tool_name not in {"shape", "text"}:
-            messagebox.showinfo(self.app._app_title(), self.t("editor_no_image"))
+        elif not self.session.is_raster_editable() and tool_name not in {"shape", "text"}:
+            messagebox.showinfo(self.app._app_title(), self.t("editor_no_media"))
             return
-        if tool_name in {"shape", "text"} and not self.session.is_editable_image():
-            messagebox.showinfo(self.app._app_title(), self.t("editor_no_image"))
+        if tool_name in {"shape", "text"} and not self.session.is_raster_editable():
+            messagebox.showinfo(self.app._app_title(), self.t("editor_no_media"))
             return
         self.active_tool = tool_name
         self.main_toolbar.grid_remove()
@@ -497,6 +630,7 @@ class EditorController:
         self.canvas_resolution_buttons.clear()
         self.canvas_aspect_buttons.clear()
         self.draw_mode_buttons.clear()
+        self.eraser_mode_buttons.clear()
         self._resize_scale_row = None
         self._resize_canvas_row = None
         self._resize_aspect_row = None
@@ -510,6 +644,7 @@ class EditorController:
             "rotate": self._build_rotate_bar,
             "resize": self._build_resize_bar,
             "draw": self._build_draw_bar,
+            "eraser": self._build_eraser_bar,
             "shape": self._build_shape_bar,
             "text": self._build_text_bar,
         }
@@ -522,16 +657,22 @@ class EditorController:
             self._reset_resize_state()
         if tool_name == "draw":
             self._update_draw_cursor()
+        elif tool_name == "eraser":
+            self.magic_color = None
+            self.session.capture_heal_reference()
+            editor_cursors.apply_draw_cursor(self.canvas, "eraser")
         elif tool_name == "shape":
             self._reset_shape_state()
             self.canvas.configure(cursor="crosshair")
         elif tool_name == "text":
             self._reset_text_state()
-            self.canvas.configure(cursor="xterm")
+            self._set_text_tool_cursor("xterm")
             self.canvas.focus_set()
             self.canvas.bind("<Delete>", self._on_text_key_delete)
+            self.canvas.bind("<Motion>", self._on_text_canvas_motion)
         else:
             self.canvas.unbind("<Delete>")
+            self.canvas.unbind("<Motion>")
             self.canvas.configure(cursor="hand2")
         self.refresh_canvas()
 
@@ -625,6 +766,7 @@ class EditorController:
         self.main_toolbar.grid(row=0, column=0, sticky="ew")
         self.canvas.configure(cursor="hand2")
         self.canvas.unbind("<Delete>")
+        self.canvas.unbind("<Motion>")
         self.invalidate_preview()
         self.refresh_canvas()
         return True
@@ -647,6 +789,7 @@ class EditorController:
         self._text_drag_size_origin = 0.0
         self._text_drag_object_origin = None
         self._text_pending_move_id = None
+        self._text_suppress_new_on_next_click = False
         self.canvas.delete("text_overlay")
 
     def _reset_shape_state(self):
@@ -943,6 +1086,17 @@ class EditorController:
         self._refresh_resize_mode_buttons()
         self._refresh_canvas_resolution_buttons()
         self._refresh_canvas_aspect_buttons()
+        if self.session.is_video():
+            canvas_btn = self.resize_mode_buttons.get("canvas")
+            if canvas_btn is not None:
+                canvas_btn.pack_forget()
+            self.var("resize_mode").set("scale")
+            for row in (
+                self._resize_canvas_row,
+                self._resize_aspect_row,
+            ):
+                if row is not None:
+                    row.pack_forget()
 
     def _tk_alive(self, widget) -> bool:
         return widget is not None and bool(widget.winfo_exists())
@@ -1215,10 +1369,11 @@ class EditorController:
         composite = self._compose_canvas_frame_fast(canvas_w, canvas_h, preview_factor)
         if composite is None:
             return
-        preview = composite.copy()
-        preview.thumbnail(
-            (max(1, int(display_w)), max(1, int(display_h))),
-            Image.Resampling.BILINEAR,
+        preview = editor.fit_image_for_display(
+            composite,
+            display_w,
+            display_h,
+            resample=Image.Resampling.BILINEAR,
         )
         self._canvas_drag_photo = ImageTk.PhotoImage(preview)
         self.canvas.delete("base", "overlay")
@@ -1478,8 +1633,6 @@ class EditorController:
             self._draw_resize_overlay(scale, offset_x, offset_y, img_w, img_h)
         elif self.active_tool == "text":
             self._draw_text_overlays(scale, offset_x, offset_y, img_w, img_h)
-        if self.active_tool is None:
-            self._draw_image_boundary(scale, offset_x, offset_y, img_w, img_h)
 
     def _draw_resize_overlay(self, scale: float, offset_x: float, offset_y: float, img_w: int, img_h: int):
         dims = self._parse_resize_dimensions()
@@ -1513,7 +1666,7 @@ class EditorController:
                     y0 - 10,
                     text=f"{target_w} × {target_h}",
                     fill=EDITOR_THEME["text"],
-                    font=("Segoe UI", 10, "bold"),
+                    font=self._ui_font(10, "bold"),
                     tags="overlay",
                 )
             return
@@ -1543,7 +1696,7 @@ class EditorController:
             offset_y - 10,
             text=f"{target_w} × {target_h}",
             fill=EDITOR_THEME["text"],
-            font=("Segoe UI", 10, "bold"),
+            font=self._ui_font(10, "bold"),
             tags="overlay",
         )
         if self._canvas_free_aspect():
@@ -1644,7 +1797,7 @@ class EditorController:
             canvas_y - half - 12,
             text=color_hex.upper(),
             fill=EDITOR_THEME["text"],
-            font=("Segoe UI", 9, "bold"),
+            font=self._ui_font(9, "bold"),
             tags="eyedropper_feedback",
         )
         self._eyedropper_feedback_after_id = self.canvas.after(
@@ -1759,6 +1912,142 @@ class EditorController:
             return
         editor_cursors.apply_draw_cursor(self.canvas, self.var("draw_mode").get())
 
+    ERASER_MODE_SPECS = (
+        ("manual", "editor_eraser_manual"),
+        ("global_color", "editor_eraser_global"),
+        ("flood_region", "editor_eraser_flood"),
+        ("magic_manual", "editor_eraser_magic"),
+        ("heal", "editor_eraser_heal"),
+    )
+
+    def _build_eraser_bar(self):
+        row = tk.Frame(self.sub_toolbar_content, bg=EDITOR_THEME["bg"])
+        row.pack(fill="x")
+        self.eraser_mode_buttons.clear()
+        self._label(row, self.t("editor_crop_mode")).pack(side="left", padx=(0, 6))
+        for mode, label_key in self.ERASER_MODE_SPECS:
+            btn = self._button(
+                row,
+                self.t(label_key),
+                lambda m=mode: self._set_eraser_mode(m),
+                width=9,
+                toggle=True,
+            )
+            btn._eraser_mode = mode
+            btn.pack(side="left", padx=2)
+            self.eraser_mode_buttons[mode] = btn
+
+        self._eraser_size_row = tk.Frame(self.sub_toolbar_content, bg=EDITOR_THEME["bg"])
+        self._eraser_size_row.pack(fill="x", pady=(6, 0))
+        self._label(self._eraser_size_row, self.t("editor_size")).pack(side="left", padx=(0, 4))
+        self._draw_scale(self._eraser_size_row, self.var("eraser_size"), 4, 80).pack(side="left")
+
+        self._eraser_tolerance_row = tk.Frame(self.sub_toolbar_content, bg=EDITOR_THEME["bg"])
+        self._eraser_tolerance_row.pack(fill="x", pady=(6, 0))
+        self._label(self._eraser_tolerance_row, self.t("editor_tolerance")).pack(side="left", padx=(0, 4))
+        self._draw_scale(self._eraser_tolerance_row, self.var("eraser_tolerance"), 0, 80).pack(side="left")
+        self._refresh_eraser_bar_state()
+
+    def _set_eraser_mode(self, mode: str):
+        self.var("eraser_mode").set(mode)
+        if mode != "magic_manual":
+            self.magic_color = None
+        self._refresh_eraser_bar_state()
+
+    def _refresh_eraser_bar_state(self):
+        mode = self.var("eraser_mode").get()
+        for key, button in self.eraser_mode_buttons.items():
+            self._set_toggle_button_active(button, key == mode)
+        if mode in {"manual", "magic_manual", "heal"}:
+            self._eraser_size_row.pack(fill="x", pady=(6, 0))
+        else:
+            self._eraser_size_row.pack_forget()
+        if mode in {"global_color", "flood_region", "magic_manual"}:
+            self._eraser_tolerance_row.pack(fill="x", pady=(6, 0))
+        else:
+            self._eraser_tolerance_row.pack_forget()
+
+    def _draw_eraser_preview(self):
+        self.canvas.delete("stroke_preview")
+        if not self.stroke_points:
+            return
+        width, height, scale, offset_x, offset_y, img_w, img_h = self.metrics()
+        line_width = max(1, int(round(self.var("eraser_size").get() * scale)))
+        coords: list[float] = []
+        for px, py in self.stroke_points:
+            cx, cy = editor.image_to_canvas(px, py, width, height, img_w, img_h)
+            coords.extend((cx, cy))
+        color = "#ffffff"
+        if len(coords) >= 4:
+            self.canvas.create_line(
+                *coords,
+                fill=color,
+                width=line_width,
+                capstyle="round",
+                joinstyle="round",
+                smooth=True,
+                tags="stroke_preview",
+            )
+        elif len(coords) == 2:
+            x, y = coords
+            self.canvas.create_oval(
+                x - line_width,
+                y - line_width,
+                x + line_width,
+                y + line_width,
+                fill=color,
+                outline="",
+                tags="stroke_preview",
+            )
+
+    def _commit_png_eraser(self):
+        if not self.stroke_points:
+            return
+        mode = self.var("eraser_mode").get()
+        last_x, last_y = self.stroke_points[-1]
+        self.session.apply_eraser(
+            mode,
+            last_x,
+            last_y,
+            self.stroke_points,
+            self.var("eraser_tolerance").get(),
+            self.var("eraser_size").get(),
+            target_color=self.magic_color if mode == "magic_manual" else None,
+        )
+
+    def _apply_eraser_click(self, point: tuple[float, float]):
+        mode = self.var("eraser_mode").get()
+        if mode not in {"global_color", "flood_region"}:
+            return
+        self.session.snapshot()
+        self.session.apply_eraser(
+            mode,
+            point[0],
+            point[1],
+            [],
+            self.var("eraser_tolerance").get(),
+            self.var("eraser_size").get(),
+        )
+        self.invalidate_preview()
+        self.refresh_canvas()
+
+    def _ensure_magic_eraser_color(self, point: tuple[float, float]) -> bool:
+        if self.magic_color is not None:
+            return True
+        image = self.session.image
+        if image is None:
+            return False
+        sample = image.convert("RGBA") if image.mode != "RGBA" else image
+        rgba = editor_ops.sample_composite_color(sample, point[0], point[1])
+        if rgba is None or rgba[3] == 0:
+            composite = self.session.composite()
+            if composite is not None:
+                rgba = editor_ops.sample_composite_color(composite, point[0], point[1])
+        if rgba is None:
+            return False
+        self.magic_color = rgba
+        return True
+
     def _pick_color_at(self, point: tuple[float, float], canvas_x: float, canvas_y: float):
         composite = self.session.composite()
         if composite is None:
@@ -1773,10 +2062,6 @@ class EditorController:
         self._show_eyedropper_feedback(canvas_x, canvas_y, new_color)
         if new_color.lower() != old_color:
             self._set_draw_mode(self._draw_return_mode)
-
-        if color and color[1]:
-            self.draw_color = color[1]
-            self._refresh_draw_color_swatch()
 
     def _build_color_swatch(self, parent, color: str, command):
         size = self.DRAW_COLOR_SWATCH_SIZE
@@ -2106,6 +2391,7 @@ class EditorController:
             return
         obj.font_family = self.var("text_font").get()
         obj.font_size = float(self.var("text_size").get())
+        obj.font_size = max(editor_text.MIN_FONT_SIZE, obj.font_size)
         obj.bold = self.var("text_bold").get()
         obj.italic = self.var("text_italic").get()
         obj.underline = self.var("text_underline").get()
@@ -2149,6 +2435,10 @@ class EditorController:
         self._refresh_text_bar_state()
 
     def _on_text_size_change(self, *_args):
+        size = max(int(editor_text.MIN_FONT_SIZE), int(self.var("text_size").get()))
+        if int(self.var("text_size").get()) != size:
+            self.var("text_size").set(size)
+            return
         obj = self._selected_text_object()
         if obj is not None:
             self._apply_text_bar_to_object(obj)
@@ -2225,6 +2515,8 @@ class EditorController:
         if obj is not None and not obj.text.strip():
             self.session.text_objects = [item for item in self.session.text_objects if item.id != obj.id]
             self._text_selected_id = None
+        else:
+            self._text_suppress_new_on_next_click = True
         self.invalidate_preview()
         self.refresh_canvas()
 
@@ -2297,6 +2589,7 @@ class EditorController:
             border_width=int(self.var("text_border_width").get()),
         )
         self.session.add_text_object(obj)
+        self._text_suppress_new_on_next_click = False
         self._text_selected_id = obj.id
         self._sync_text_bar_from_object(obj)
         self._start_text_edit(obj)
@@ -2358,29 +2651,48 @@ class EditorController:
         old_h = max(1.0, y1 - y0)
         handle = self._text_drag_handle
         px, py = pointer
+        anchors = {
+            "se": (x0, y0),
+            "sw": (x1, y0),
+            "ne": (x0, y1),
+            "nw": (x1, y1),
+        }
+        ax, ay = anchors[handle]
         if handle == "se":
-            new_w = max(12.0, px - x0)
-            new_h = max(12.0, py - y0)
+            new_w = max(12.0, px - ax)
+            new_h = max(12.0, py - ay)
         elif handle == "sw":
-            new_w = max(12.0, x1 - px)
-            new_h = max(12.0, py - y0)
-            obj.x = px
+            new_w = max(12.0, ax - px)
+            new_h = max(12.0, py - ay)
         elif handle == "ne":
-            new_w = max(12.0, px - x0)
-            new_h = max(12.0, y1 - py)
-            obj.y = py
+            new_w = max(12.0, px - ax)
+            new_h = max(12.0, ay - py)
         else:
-            new_w = max(12.0, x1 - px)
-            new_h = max(12.0, y1 - py)
-            obj.x = px
-            obj.y = py
+            new_w = max(12.0, ax - px)
+            new_h = max(12.0, ay - py)
         factor = min(new_w / old_w, new_h / old_h)
-        obj.font_size = max(8.0, self._text_drag_size_origin * factor)
+        obj.font_size = max(editor_text.MIN_FONT_SIZE, self._text_drag_size_origin * factor)
+        font = editor_text.load_font(obj.font_family, obj.font_size, obj.bold, obj.italic)
+        sample = obj.text if obj.text else "M"
+        left, top, right, bottom = font.getbbox(sample)
+        if handle == "se":
+            obj.x = ax - left
+            obj.y = ay - top
+        elif handle == "sw":
+            obj.x = ax - right
+            obj.y = ay - top
+        elif handle == "ne":
+            obj.x = ax - left
+            obj.y = ay - bottom
+        else:
+            obj.x = ax - right
+            obj.y = ay - bottom
 
     def _handle_text_press(self, point: tuple[float, float]):
         self._finish_text_edit()
         hit = editor_text.find_object_at(self.session.text_objects, point[0], point[1])
         if hit is not None:
+            self._text_suppress_new_on_next_click = False
             self._text_selected_id = hit.id
             self._sync_text_bar_from_object(hit)
             handle = editor_text.hit_text_handle(hit, point[0], point[1])
@@ -2392,9 +2704,19 @@ class EditorController:
                 self._text_drag_handle = handle
                 self._text_drag_box_origin = editor_text.measure_text_object(hit)
                 self._text_drag_size_origin = hit.font_size
+                self._set_text_tool_cursor(editor_text.TEXT_HANDLE_CURSORS.get(handle, "sizing"))
             else:
                 self._text_pending_move_id = hit.id
                 self._text_drag_object_origin = (hit.x, hit.y)
+            self.refresh_canvas()
+            return
+        if self._text_suppress_new_on_next_click:
+            self._text_suppress_new_on_next_click = False
+            self._text_selected_id = None
+            self.refresh_canvas()
+            return
+        if self._text_selected_id is not None:
+            self._text_selected_id = None
             self.refresh_canvas()
             return
         self._create_text_at(point)
@@ -2405,10 +2727,12 @@ class EditorController:
                 self.session.snapshot()
                 self._text_dragging = True
                 self._text_drag_mode = "move"
+                self._set_text_tool_cursor("fleur")
         obj = self._selected_text_object()
         if not self._text_dragging or obj is None or self._text_drag_origin is None:
             return
         if self._text_drag_mode == "move" and self._text_drag_object_origin is not None:
+            self._set_text_tool_cursor("fleur")
             dx = point[0] - self._text_drag_origin[0]
             dy = point[1] - self._text_drag_origin[1]
             obj.x = self._text_drag_object_origin[0] + dx
@@ -2417,6 +2741,8 @@ class EditorController:
             self.refresh_canvas()
             return
         if self._text_drag_mode == "resize":
+            handle = self._text_drag_handle or "se"
+            self._set_text_tool_cursor(editor_text.TEXT_HANDLE_CURSORS.get(handle, "sizing"))
             self._text_resize_from_pointer(obj, point)
             self.invalidate_preview()
             self.refresh_canvas()
@@ -2434,6 +2760,7 @@ class EditorController:
         self._text_drag_box_origin = None
         self._text_drag_size_origin = 0.0
         self._text_drag_object_origin = None
+        self._set_text_tool_cursor("xterm")
 
     def _build_text_bar(self):
         row = tk.Frame(self.sub_toolbar_content, bg=EDITOR_THEME["bg"])
@@ -2452,20 +2779,14 @@ class EditorController:
         menu["menu"].configure(bg=EDITOR_THEME["surface"], fg=EDITOR_THEME["text"])
         menu.pack(side="left", padx=(0, 8))
         self._label(row, self.t("editor_text_size")).pack(side="left", padx=(0, 4))
-        size_scale = self._draw_scale(row, self.var("text_size"), 12, 160)
+        size_scale = self._draw_scale(row, self.var("text_size"), int(editor_text.MIN_FONT_SIZE), 160)
         size_scale.pack(side="left", padx=(0, 8))
         self.var("text_size").trace_add("write", self._on_text_size_change)
 
         row2 = tk.Frame(self.sub_toolbar_content, bg=EDITOR_THEME["bg"])
         row2.pack(fill="x", pady=(6, 0))
         for key, label in (("bold", "B"), ("italic", "I"), ("underline", "U"), ("strikethrough", "S")):
-            btn = self._button(
-                row2,
-                label,
-                lambda k=key: self._toggle_text_style(k),
-                width=3,
-                toggle=True,
-            )
+            btn = self._text_format_button(row2, key, label)
             btn.pack(side="left", padx=2)
             self._text_format_buttons[key] = btn
         self._text_color_swatch = self._build_color_swatch(row2, self.text_color, self._pick_text_color)
@@ -2526,6 +2847,74 @@ class EditorController:
         if path is not None:
             self.load_path(path)
 
+    def _ffmpeg_path(self):
+        return self.app._editor_ffmpeg_location()
+
+    @staticmethod
+    def _format_video_time(seconds: float) -> str:
+        seconds = max(0.0, float(seconds))
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        centis = int(round((seconds % 1) * 100))
+        if centis >= 100:
+            centis = 0
+            secs += 1
+        return f"{minutes:02d}:{secs:02d}.{centis:02d}"
+
+    def _update_video_timeline_ui(self):
+        if self.session.is_video():
+            self.timeline_frame.grid()
+            duration = max(self.session.video_duration, 0.001)
+            self.video_timeline.configure(to=duration)
+            self._video_timeline_updating = True
+            self._video_time_var.set(self.session.video_time)
+            self._video_timeline_updating = False
+            self._update_video_time_label()
+        else:
+            self.timeline_frame.grid_remove()
+
+    def _update_video_time_label(self):
+        current = self.session.video_time
+        total = max(self.session.video_duration, 0.001)
+        frame = self.session.current_video_frame() + 1
+        total_frames = max(1, self.session.video_frame_count)
+        self.video_time_label.config(
+            text=self.t(
+                "editor_video_timeline",
+                current=self._format_video_time(current),
+                total=self._format_video_time(total),
+                frame=frame,
+                frames=total_frames,
+            )
+        )
+
+    def _on_video_timeline_scrub(self, value):
+        if self._video_timeline_updating or not self.session.is_video():
+            return
+        if self._video_scrub_after_id is not None:
+            self.canvas.after_cancel(self._video_scrub_after_id)
+        self._video_scrub_after_id = self.canvas.after(60, lambda v=float(value): self._apply_video_seek(v))
+
+    def _apply_video_seek(self, time_seconds: float):
+        self._video_scrub_after_id = None
+        if not self.session.is_video():
+            return
+        self.session.seek_video(time_seconds, self._ffmpeg_path())
+        self._video_timeline_updating = True
+        self._video_time_var.set(self.session.video_time)
+        self._video_timeline_updating = False
+        self._update_video_time_label()
+        if self.active_tool == "eraser":
+            self.session.capture_heal_reference()
+        self.invalidate_preview()
+        self.refresh_canvas()
+
+    def _step_video_frame(self, delta: int):
+        if not self.session.is_video() or self.session.video_fps <= 0:
+            return
+        step = 1.0 / self.session.video_fps
+        self._apply_video_seek(self.session.video_time + delta * step)
+
     def pick_file(self):
         selected = filedialog.askopenfilename(
             title=self.t("tab_editor"),
@@ -2545,9 +2934,11 @@ class EditorController:
         if self.session.image is not None:
             self.var("resize_w").set(str(self.session.image.width))
             self.var("resize_h").set(str(self.session.image.height))
+        self._update_video_timeline_ui()
         self.exit_tool(force=True)
         self.invalidate_preview()
         self.refresh_canvas()
+        self.canvas.after(180, self._refresh_canvas_after_layout)
         message = self.t("editor_loaded", name=path.name)
         self.app.detail_var.set(message)
         self.app._log(message)
@@ -2579,6 +2970,10 @@ class EditorController:
 
     def invalidate_preview(self):
         self._preview_dirty = True
+
+    def _refresh_canvas_after_layout(self):
+        self.invalidate_preview()
+        self.refresh_canvas()
 
     def _on_canvas_configure(self, _event):
         if self._configure_after_id is not None:
@@ -2617,6 +3012,7 @@ class EditorController:
             "rotate_label",
             "eyedropper_feedback",
             "text_overlay",
+            "empty_hint",
         ):
             self.canvas.delete(tag)
 
@@ -2631,6 +3027,10 @@ class EditorController:
         canvas = self.canvas
         width = max(canvas.winfo_width(), 1)
         height = max(canvas.winfo_height(), 1)
+        canvas_size = (width, height)
+        if canvas_size != self._last_canvas_size:
+            self._last_canvas_size = canvas_size
+            self._preview_dirty = True
         image = self._composite_for_canvas()
         if image is None:
             if overlay_only and self.canvas_photo is not None and not self._preview_dirty:
@@ -2641,13 +3041,15 @@ class EditorController:
                 height / 2,
                 text=self.t("editor_click_add"),
                 fill=EDITOR_THEME["muted"],
-                font=("Segoe UI", 11),
+                font=self._ui_font(11),
+                tags="empty_hint",
             )
             self.canvas_photo = None
             self._preview_dirty = False
             self._raise_text_edit_layer()
             return
 
+        canvas.delete("empty_hint")
         img_w, img_h = image.width, image.height
         scale, offset_x, offset_y, display_w, display_h = editor.display_metrics(width, height, img_w, img_h)
 
@@ -2675,11 +3077,7 @@ class EditorController:
         preview_source = image
         if self.active_tool == "crop" and self.crop_box is not None and not self._crop_interacting:
             preview_source = editor_ops.darken_outside_box(image, self.crop_box)
-        preview = preview_source.copy()
-        preview.thumbnail(
-            (max(1, int(img_w * scale)), max(1, int(img_h * scale))),
-            resample,
-        )
+        preview = editor.fit_image_for_display(preview_source, display_w, display_h, resample=resample)
         self.canvas_photo = ImageTk.PhotoImage(preview)
         canvas.create_image(offset_x, offset_y, anchor="nw", image=self.canvas_photo, tags="base")
         self._preview_dirty = False
@@ -2736,7 +3134,7 @@ class EditorController:
             )
         elif mode == "eraser":
             self.session.apply_eraser(
-                "manual",
+                "manual_stroke",
                 self.stroke_points[-1][0],
                 self.stroke_points[-1][1],
                 self.stroke_points,
@@ -2779,12 +3177,12 @@ class EditorController:
         scale, _offset_x, _offset_y, display_w, display_h = editor.display_metrics(
             width, height, img_w, img_h
         )
-        preview = composite.copy()
-        preview.thumbnail(
-            (max(1, int(img_w * scale)), max(1, int(img_h * scale))),
-            Image.Resampling.BILINEAR,
+        self._rotate_drag_display = editor.fit_image_for_display(
+            composite,
+            display_w,
+            display_h,
+            resample=Image.Resampling.BILINEAR,
         )
-        self._rotate_drag_display = preview
 
     def _rotate_drag_delta(self) -> float:
         return self._rotate_wheel_angle - self._rotate_angle_at_drag_start
@@ -2811,7 +3209,7 @@ class EditorController:
                 center_y - radius - 16,
                 text=f"{preview_delta:.0f}°",
                 fill=EDITOR_THEME["text"],
-                font=("Segoe UI", 13, "bold"),
+                font=self._ui_font(13, "bold"),
                 tags="rotate_label",
             )
 
@@ -2920,7 +3318,7 @@ class EditorController:
         if self._rotate_dragging:
             delta = self._rotate_drag_delta()
             if abs(delta) > 0.01:
-                self.session.rotate(delta)
+                self.session.rotate(delta, ffmpeg_location=self._ffmpeg_path())
         self._clear_rotate_drag()
         self.invalidate_preview()
         self.refresh_canvas()
@@ -3036,6 +3434,18 @@ class EditorController:
                 self.stroke_points = [point]
                 self.last_point = point
             return
+        if tool == "eraser":
+            mode = self.var("eraser_mode").get()
+            if mode in {"global_color", "flood_region"}:
+                self._apply_eraser_click(point)
+                return
+            if mode == "magic_manual" and not self._ensure_magic_eraser_color(point):
+                return
+            self.session.snapshot()
+            self.stroke_active = True
+            self.stroke_points = [point]
+            self.last_point = point
+            return
         if tool == "shape":
             kind = self.var("shape_kind").get()
             if kind == "curve":
@@ -3129,6 +3539,22 @@ class EditorController:
                 self._draw_stroke_preview(mode)
                 self.last_point = point
             return
+        if tool == "eraser" and self.stroke_active and self.last_point is not None:
+            mode = self.var("eraser_mode").get()
+            if mode not in {"manual", "magic_manual", "heal"}:
+                return
+            point = self.canvas_point(event)
+            if point is None:
+                return
+            segment = editor_ops.interpolate_segment(
+                self.last_point,
+                point,
+                step=editor_ops.brush_interpolation_step(self.var("eraser_size").get()),
+            )
+            self.stroke_points.extend(segment)
+            self._draw_eraser_preview()
+            self.last_point = point
+            return
 
     def _canvas_release(self, event):
         if self._canvas_dragging or self._canvas_handle_resizing:
@@ -3180,6 +3606,11 @@ class EditorController:
                 self._commit_stroke(mode)
                 self.invalidate_preview()
                 self.refresh_canvas()
+        elif self.stroke_active and self.active_tool == "eraser":
+            self.canvas.delete("stroke_preview")
+            self._commit_png_eraser()
+            self.invalidate_preview()
+            self.refresh_canvas()
         self.stroke_active = False
         self.last_point = None
         self.stroke_points = []
@@ -3206,6 +3637,9 @@ class EditorController:
             return
         if self._text_selected_id:
             self._delete_selected_text()
+
+    def _on_text_canvas_motion(self, event):
+        self._update_text_hover_cursor(event)
 
     def apply_crop(self):
         if self._commit_crop():
@@ -3254,7 +3688,7 @@ class EditorController:
         if abs(degrees) < 0.01:
             self.var("rotate_degrees").set("0")
             return "break"
-        self.session.rotate(degrees)
+        self.session.rotate(degrees, ffmpeg_location=self._ffmpeg_path())
         self._rotate_wheel_angle += degrees
         self.var("rotate_degrees").set("0")
         self._clear_rotate_drag()
@@ -3263,20 +3697,20 @@ class EditorController:
         return "break"
 
     def rotate_by(self, degrees: float):
-        self.session.rotate(degrees)
+        self.session.rotate(degrees, ffmpeg_location=self._ffmpeg_path())
         self._rotate_wheel_angle += degrees
         self._clear_rotate_drag()
         self.invalidate_preview()
         self.refresh_canvas()
 
     def flip_horizontal(self):
-        self.session.flip_horizontal()
+        self.session.flip_horizontal(ffmpeg_location=self._ffmpeg_path())
         self._clear_rotate_drag()
         self.invalidate_preview()
         self.refresh_canvas()
 
     def flip_vertical(self):
-        self.session.flip_vertical()
+        self.session.flip_vertical(ffmpeg_location=self._ffmpeg_path())
         self._clear_rotate_drag()
         self.invalidate_preview()
         self.refresh_canvas()
@@ -3292,8 +3726,11 @@ class EditorController:
         mode = self.var("resize_mode").get()
         if mode == "scale":
             lock = self.var("resize_lock_aspect").get()
-            self.session.resize_scale(target_w, target_h, lock_aspect=lock)
+            self.session.resize_scale(target_w, target_h, lock_aspect=lock, ffmpeg_location=self._ffmpeg_path())
         else:
+            if self.session.is_video():
+                messagebox.showinfo(self.app._app_title(), self.t("editor_resize_video_canvas"))
+                return False
             if self._canvas_source_image is None:
                 self._init_canvas_layout()
             self.session.apply_canvas_layout(
@@ -3326,6 +3763,7 @@ class EditorController:
             self._finish_text_edit()
             self._text_selected_id = None
             self._reset_rotate_state()
+            self._update_video_timeline_ui()
             self.invalidate_preview()
             self.refresh_canvas()
 
@@ -3334,6 +3772,7 @@ class EditorController:
             self._finish_text_edit()
             self._text_selected_id = None
             self._reset_rotate_state()
+            self._update_video_timeline_ui()
             self.invalidate_preview()
             self.refresh_canvas()
 
@@ -3370,7 +3809,46 @@ class EditorController:
             return base
         return self.session.composite()
 
+    def _save_video_to_file(self) -> bool:
+        initial = self.session.source_path
+        initial_name = initial.stem + "_edit.mp4" if initial else "edit.mp4"
+        initial_dir = str(initial.parent) if initial else self.app.editor_folder_var.get()
+        selected = filedialog.asksaveasfilename(
+            title=self.t("editor_save"),
+            defaultextension=".mp4",
+            initialdir=initial_dir,
+            initialfile=initial_name,
+            filetypes=[
+                ("MP4", "*.mp4"),
+                ("WebM", "*.webm"),
+                ("PNG (fotograma actual)", "*.png"),
+            ],
+        )
+        if not selected:
+            return False
+        output_path = Path(selected)
+        try:
+            if output_path.suffix.lower() == ".png":
+                rendered = self._render_for_save()
+                if rendered is None:
+                    raise ValueError("No hay fotograma para guardar.")
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                rendered.save(output_path)
+            else:
+                self.session.save_video(output_path, ffmpeg_location=self._ffmpeg_path())
+            saved = output_path
+        except Exception as error:
+            messagebox.showerror(self.app._app_title(), str(error))
+            return False
+        message = self.t("editor_saved", name=saved.name)
+        self.app.detail_var.set(message)
+        self.app._log(message)
+        self.refresh_history()
+        return True
+
     def _save_to_file(self) -> bool:
+        if self.session.is_video():
+            return self._save_video_to_file()
         initial = self.session.source_path
         initial_name = initial.stem + "_edit.png" if initial else "edit.png"
         initial_dir = str(initial.parent) if initial else self.app.editor_folder_var.get()

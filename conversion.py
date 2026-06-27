@@ -73,6 +73,27 @@ COMMON_FFMPEG_LOCATIONS = (
     Path(r"C:\Program Files\ffmpeg\bin\ffmpeg.exe"),
 )
 
+
+def _app_search_roots() -> list[Path]:
+    roots: list[Path] = []
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        roots.append(exe_dir)
+        internal = exe_dir / "_internal"
+        if internal.is_dir():
+            roots.append(internal)
+    roots.append(Path(__file__).resolve().parent)
+    return roots
+
+
+def bundled_ffmpeg_candidates() -> list[Path]:
+    candidates: list[Path] = []
+    for root in _app_search_roots():
+        candidates.append(root / "ffmpeg" / "bin" / "ffmpeg.exe")
+        candidates.append(root / "ffmpeg" / "ffmpeg.exe")
+    candidates.append(Path(__file__).resolve().parent / "third_party" / "ffmpeg" / "bin" / "ffmpeg.exe")
+    return candidates
+
 ALL_INPUT_EXTENSIONS = sorted(VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | IMAGE_EXTENSIONS)
 
 FORMAT_GROUPS = {
@@ -216,6 +237,9 @@ def find_ffmpeg(ffmpeg_location: str | None = None) -> str | None:
         candidate = Path(ffmpeg_location)
         if candidate.is_file():
             return str(candidate)
+    for candidate in bundled_ffmpeg_candidates():
+        if candidate.is_file():
+            return str(candidate)
     found = shutil.which("ffmpeg")
     if found:
         return found
@@ -304,6 +328,44 @@ def _save_static_image(image: Image.Image, target_format: str, output_path: Path
     save_image.save(output_path, format=pillow_format, **save_kwargs)
 
 
+def _prepare_grayscale_for_potrace(image: Image.Image) -> Image.Image:
+    """Build a clean black-on-white bitmap for Potrace."""
+    rgba = image.convert("RGBA")
+    alpha_min, alpha_max = rgba.getchannel("A").getextrema()
+    if alpha_min < 255:
+        background = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        rgba = Image.alpha_composite(background, rgba)
+
+    gray = rgba.convert("L")
+
+    min_dim = 640
+    width, height = gray.size
+    if max(width, height) < min_dim:
+        scale = min_dim / max(width, height)
+        gray = gray.resize(
+            (max(1, int(width * scale)), max(1, int(height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+
+    max_dim = 2048
+    if max(gray.size) > max_dim:
+        gray.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
+    return gray
+
+
+def _potrace_blacklevel(gray: Image.Image) -> float:
+    pixels = list(gray.getdata())
+    if not pixels:
+        return 0.5
+    dark_ratio = sum(1 for value in pixels if value < 128) / len(pixels)
+    if dark_ratio < 0.08:
+        return 0.62
+    if dark_ratio > 0.55:
+        return 0.45
+    return 0.5
+
+
 def _path_to_svg_document(path, width: int, height: int) -> str:
     parts: list[str] = []
     for curve in path:
@@ -326,7 +388,8 @@ def _path_to_svg_document(path, width: int, height: int) -> str:
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}">\n'
-        f'  <path fill="#000000" stroke="none" d="{path_data}"/>\n'
+        f'  <rect width="100%" height="100%" fill="#ffffff"/>\n'
+        f'  <path fill="#000000" fill-rule="evenodd" stroke="none" d="{path_data}"/>\n'
         "</svg>\n"
     )
 
@@ -340,13 +403,15 @@ def _convert_image_to_svg(input_path: Path, output_path: Path) -> Path:
     with Image.open(input_path) as image:
         if _is_animated_image(input_path):
             image.seek(0)
-        gray = image.convert("L")
-        max_dim = 900
-        if max(gray.size) > max_dim:
-            gray.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+        gray = _prepare_grayscale_for_potrace(image)
         width, height = gray.size
-        bitmap = PotraceBitmap(gray, blacklevel=0.5)
-        traced = bitmap.trace(turdsize=2)
+        blacklevel = _potrace_blacklevel(gray)
+        bitmap = PotraceBitmap(gray, blacklevel=blacklevel)
+        traced = bitmap.trace(
+            turdsize=0,
+            alphamax=0.85,
+            opttolerance=0.12,
+        )
 
     output_path.write_text(_path_to_svg_document(traced, width, height), encoding="utf-8")
     return output_path

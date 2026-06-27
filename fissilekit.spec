@@ -9,12 +9,22 @@ from PyInstaller.utils.hooks import collect_all
 block_cipher = None
 root = Path(SPECPATH)
 
+ffmpeg_bundle = root / "third_party" / "ffmpeg"
+if not (ffmpeg_bundle / "bin" / "ffmpeg.exe").is_file():
+    raise SystemExit(
+        "FFmpeg embebido no encontrado. Ejecuta: py ensure_ffmpeg.py"
+    )
+
 datas = [
     (str(root / "instructivo.html"), "."),
     (str(root / "fissilepondlogo.png"), "."),
     (str(root / "Fissilepond logo png.png"), "."),
     (str(root / "settings.json.example"), "."),
     (str(root / "assets" / "conversion_icons"), "assets/conversion_icons"),
+    (str(root / "assets" / "editor_icons"), "assets/editor_icons"),
+    (str(root / "assets" / "fissilekit_logo.svg"), "assets"),
+    (str(root / "installer" / "fissilekit.ico"), "installer"),
+    (str(ffmpeg_bundle), "ffmpeg"),
 ]
 
 binaries = []
@@ -26,6 +36,7 @@ hiddenimports = [
     "editor_icons",
     "conversion_image_audio",
     "numpy",
+    "fitz",
 ]
 
 for pkg in ("yt_dlp", "keyboard", "uiautomation"):
@@ -64,14 +75,14 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon=str(root / "installer" / "fissilekit.ico"),
 )
 
 coll = COLLECT(
@@ -81,6 +92,6 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=["ffmpeg.exe", "ffprobe.exe", "python*.dll"],
     name="FissileKit",
 )

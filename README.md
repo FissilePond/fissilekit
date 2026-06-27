@@ -4,12 +4,12 @@ Toolkit de escritorio para creadores: descarga videos y audio de YouTube, busca 
 
 Desarrollado por [FissilePond](https://www.fissilepond.com/).
 
-> Añadiré mas cosas con el tiempo; quiero que sea la herramienta que acompañe a un editor de video. Hecho originalmente para mi uso personal.
+> Herramienta pensada para acompanar un flujo de edicion de video: descargas, assets, conversiones y retoques rapidos en imagen, todo en una sola app.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-1.1.0-informational)
+![Version](https://img.shields.io/badge/Version-1.2.0-informational)
 
 ## Que hace
 
@@ -17,12 +17,12 @@ Desarrollado por [FissilePond](https://www.fissilepond.com/).
 |---------|-----------|
 | **Videos** | Descarga un link o un lote en video o audio, con calidad configurable. |
 | **Imagenes** | Lista unificada con preview, busqueda (Pexels/Flickr), portapapeles, formato y calidad al exportar. |
-| **Conversion** | Convierte entre imagenes, video y audio; lote con barra de progreso; imagen→audio (grid color→frecuencia), imagen→video con duracion/calidad, SVG, etc. |
-| **Editor** | Historial local (Imagenes/Videos/Audios), recorte con mascara, rotar, redimensionar, lapiz, cubeta, borrador manual, formas y texto. |
+| **Conversion** | Convierte entre imagenes, video y audio; lote con barra de progreso; imagen→audio, imagen→video, SVG, espectrograma, etc. |
+| **Editor** | Historial local, recorte con mascara, rotar, redimensionar (escala o lienzo), dibujo, formas y texto estilo Canva. |
 
 Ademas:
 
-- **Lotes** en videos e imagenes: agrega, quita, reemplaza y descarga todo en una carpeta.
+- **Lotes** en videos, imagenes y conversiones: agrega, quita, reemplaza y procesa todo en carpeta.
 - **Tecla global:** captura rapida del portapapeles sin pegar a mano.
 - **Interfaz:** tema oscuro/claro e idioma espanol/ingles.
 
@@ -31,13 +31,13 @@ Ademas:
 - Windows (recomendado; la tecla global y deteccion de escritura usan APIs de Windows)
 - Python 3.10 o superior **o** el instalador `.exe` precompilado
 - Dependencias Python: ver `requirements.txt`
-- Opcional: [ffmpeg](https://ffmpeg.org/) en el PATH (MP4/MP3, conversiones, previews de video/SVG en el editor)
+- Opcional pero recomendado: [ffmpeg](https://ffmpeg.org/) en el PATH (MP4/MP3, conversiones, previews de video/SVG en el editor)
 
 ## Instalacion
 
 ### Opcion A — Instalador (recomendado)
 
-1. Descarga `FissileKit-Setup-1.1.0.exe` desde [Releases](https://github.com/FissilePond/fissilekit/releases) (o compila con `build_all.bat`).
+1. Descarga `FissileKit-Setup-1.2.0.exe` desde [Releases](https://github.com/FissilePond/fissilekit/releases) (o compila con `build_all.bat`).
 2. Ejecuta el instalador y sigue el asistente.
 3. Opcional: icono en el escritorio durante la instalacion.
 
@@ -52,7 +52,7 @@ py -m pip install -r requirements.txt
 py main.py
 ```
 
-O usa `iniciar.bat` si ya tienes Python en el PATH.
+O usa `iniciar.bat` / `dev.bat` si ya tienes Python en el PATH.
 
 ### Opcion C — Portable
 
@@ -92,21 +92,38 @@ La configuracion se guarda en `settings.json` en la carpeta del programa. **No s
 
 1. Trae un archivo o un lote (**Elegir lote...**).
 2. Elige formato de destino (imagen, video o audio).
-3. Para imagen→video: duracion y calidad.
+3. Para imagen→video: duracion y calidad. Para imagen→audio: genera audio desde colores de la imagen.
 4. **Convertir** o convierte todo el lote; abre el resultado o revisa el lote con **Ver lote**.
 
 Salida por defecto: `Downloads/FissileKit/Conversiones`.
 
 ### Editor
 
-1. Abre la pestaña **Editor**; el historial muestra archivos de tu carpeta FissileKit.
-2. Selecciona una imagen en el arbol o haz clic en el lienzo para abrir otra.
-3. Herramientas con iconos: recorte, rotar, redimensionar, dibujar (lapiz/cubeta), borrador, formas, texto.
-4. **Guardar** exporta una copia (PNG recomendado si usaste transparencia o recorte con mascara).
+1. Abre la pestaña **Editor**. El historial (izquierda) muestra imagenes, videos y audios de tu carpeta FissileKit.
+2. Selecciona un archivo en el arbol o haz clic en el lienzo vacio para abrir otro.
+3. Usa las herramientas de la barra superior (iconos). Cada una abre su sub-barra con opciones.
+4. **Guardar** (en la sub-barra): aplica los cambios en la sesion y vuelve a la barra principal **sin** guardar archivo en disco.
+5. **Salir**: abandona la herramienta actual (pide confirmacion si hay cambios pendientes).
+6. **Terminar** (abajo a la derecha): exporta el resultado a un archivo (PNG recomendado si usaste transparencia, recorte o dibujo).
+
+#### Herramientas del editor
+
+| Herramienta | Que hace |
+|-------------|----------|
+| **Recorte** | Area con esquinas o arrastre; proporciones 1:1, 9:16, 16:9 o libre. Fuera del recorte queda transparente (mascara). |
+| **Rotar** | Rueda, 90°, grados manuales, volteo horizontal/vertical. |
+| **Redimensionar** | **Escalar** la imagen o **Lienzo** (mover y escalar contenido dentro de un tamano fijo HD/FHD/4K). |
+| **Dibujar** | Lapiz, borrador (solo trazos), gotero y cubeta. Tamaño, opacidad y tolerancia. |
+| **Borrador PNG** | Borra la imagen dejando transparencia: manual, color total, zona, magico y reparar. |
+| **Formas** | Linea, curva (clics + doble clic), rectangulo, ovalo, circulo, triangulo, pentagono, hexagono, estrella. Relleno y borde opcionales con color. Clic sin arrastrar = figura proporcional. |
+| **Texto** | Clic para escribir con cursor; fuentes del sistema; negrita, cursiva, subrayado, tachado; color; borde opcional. Arrastra para mover, esquinas para escalar. |
+| **Deshacer / Rehacer** | Historial de cambios en la sesion. |
+
+Los trazos de dibujo, formas y texto viven en una capa editable: el borrador manual puede borrarlos.
 
 ### Ayuda
 
-El boton **?** abre `instructivo.html` con mas detalle.
+El boton **?** abre `instructivo.html` con la guia detallada.
 
 ## API keys y privacidad
 
@@ -129,17 +146,21 @@ fissilekit/
   editor.py                # Sesion del editor
   editor_ui.py             # Interfaz del editor
   editor_ops.py            # Operaciones de imagen
+  editor_text.py           # Objetos de texto y fuentes
   editor_icons.py          # Iconos de herramientas
-  assets/conversion_icons/ # Iconos empaquetados
-  installer/fissilekit.iss # Script Inno Setup
+  editor_cursors.py        # Cursores personalizados (dibujo)
+  assets/conversion_icons/
+  assets/cursors/
+  installer/fissilekit.iss
   requirements.txt
   instructivo.html
+  dev.py / dev.bat         # Desarrollo con recarga
   build_exe.bat
   build_installer.bat
   build_all.bat
   iniciar.bat
   settings.json.example
-  fissilepondlogo.png
+  fissilekit.spec
 ```
 
 ## Donaciones
@@ -157,7 +178,7 @@ Ver [BUILD.md](BUILD.md).
 Salidas:
 
 - `dist\FissileKit\FissileKit.exe` — portable
-- `dist\FissileKit-Setup-1.1.0.exe` — instalador
+- `dist\FissileKit-Setup-1.2.0.exe` — instalador
 
 Requisito extra para el instalador: [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 

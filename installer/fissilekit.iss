@@ -2,7 +2,7 @@
 ; Requiere build_exe.bat antes de compilar este script.
 
 #define MyAppName "FissileKit"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "FissilePond"
 #define MyAppURL "https://www.fissilepond.com/"
 #define MyAppExeName "FissileKit.exe"
@@ -24,7 +24,7 @@ LicenseFile=..\LICENSE
 OutputDir=..\dist
 OutputBaseFilename=FissileKit-Setup-{#MyAppVersion}
 SetupIconFile=fissilekit.ico
-UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayIcon={app}\fissilekit.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

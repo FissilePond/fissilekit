@@ -20,7 +20,7 @@ Genera:
 | Salida | Descripcion |
 |--------|-------------|
 | `dist\FissileKit\FissileKit.exe` | Carpeta portable (copia toda la carpeta) |
-| `dist\FissileKit-Setup-1.1.0.exe` | Instalador para Windows |
+| `dist\FissileKit-Setup-1.2.0.exe` | Instalador para Windows |
 
 ## Pasos por separado
 
@@ -42,14 +42,24 @@ Despues de compilar el exe:
 .\build_installer.bat
 ```
 
-Salida: `dist\FissileKit-Setup-1.1.0.exe`
+Salida: `dist\FissileKit-Setup-1.2.0.exe`
 
 El script de Inno Setup esta en `installer\fissilekit.iss`. El icono del instalador se genera desde `fissilepondlogo.png`.
+
+## Desarrollo
+
+```powershell
+.\dev.bat
+```
+
+Ejecuta `dev.py` para lanzar la app con recarga rapida durante el desarrollo.
 
 ## Que incluye el paquete
 
 - Pestañas **Videos**, **Imagenes**, **Conversion** y **Editor**
+- Editor completo: recorte, rotar, redimensionar, dibujo, formas y texto
 - Iconos de conversion en `assets/conversion_icons`
+- Cursores de dibujo en `assets/cursors`
 - Guia `instructivo.html`
 - Plantilla `settings.json.example`
 
@@ -62,4 +72,4 @@ El script de Inno Setup esta en `installer\fissilekit.iss`. El icono del instala
 
 ## Version actual
 
-**1.1.0** — Conversion multimedia, editor de imagenes con historial local, mejoras de rendimiento en canvas.
+**1.2.0** — Editor completo (dibujo, formas, texto estilo Canva, lienzo redimensionable), conversion multimedia y lotes.

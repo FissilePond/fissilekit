@@ -3,4 +3,5 @@ yt-dlp[default]>=2026.3.3
 keyboard
 uiautomation
 numpy
+pymupdf
 potracer

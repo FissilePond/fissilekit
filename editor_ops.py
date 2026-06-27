@@ -1188,19 +1188,30 @@ def remove_color_magic(
 ) -> None:
     if not points:
         return
-    data = np.array(image.convert("RGBA"), copy=True)
+    if image.mode != "RGBA":
+        image.paste(image.convert("RGBA"))
     target = np.array(target_rgba[:3], dtype=np.int16)
-    radius = max(1, size // 2)
+    tol = max(0, int(tolerance))
+    radius = max(1.0, float(size) / 2.0)
+    ri = int(round(radius))
+    ri_sq = ri * ri
+    dense = densify_stroke_points(points, size)
+    data = np.array(image, copy=True)
     height, width = data.shape[:2]
-    for px, py in points:
-        x0 = max(0, int(px) - radius)
-        y0 = max(0, int(py) - radius)
-        x1 = min(width, int(px) + radius + 1)
-        y1 = min(height, int(py) + radius + 1)
+    for px, py in dense:
+        cx = int(round(px))
+        cy = int(round(py))
+        x0 = max(0, cx - ri)
+        y0 = max(0, cy - ri)
+        x1 = min(width, cx + ri + 1)
+        y1 = min(height, cy + ri + 1)
         patch = data[y0:y1, x0:x1]
+        local_x = np.arange(x0, x1) - cx
+        local_y = np.arange(y0, y1) - cy
+        disc = (local_x[None, :] ** 2 + local_y[:, None] ** 2) <= ri_sq
         diff = np.abs(patch[:, :, :3].astype(np.int16) - target)
-        mask = np.max(diff, axis=2) <= tolerance
-        patch[mask, 3] = 0
+        color_match = np.max(diff, axis=2) <= tol
+        patch[disc & color_match, 3] = 0
         data[y0:y1, x0:x1] = patch
     image.paste(Image.fromarray(data))
 
@@ -1213,14 +1224,18 @@ def heal_stroke(
 ) -> None:
     if not points or reference.size != image.size:
         return
+    if image.mode != "RGBA":
+        image.paste(image.convert("RGBA"))
+    ref = reference.convert("RGBA")
+    dense = densify_stroke_points(points, size)
     radius = max(1, size // 2)
-    for px, py in points:
+    for px, py in dense:
         x0 = max(0, int(px) - radius)
         y0 = max(0, int(py) - radius)
         x1 = min(image.width, int(px) + radius + 1)
         y1 = min(image.height, int(py) + radius + 1)
-        patch = reference.crop((x0, y0, x1, y1))
-        image.paste(patch, (x0, y0), patch if patch.mode == "RGBA" else None)
+        patch = ref.crop((x0, y0, x1, y1))
+        image.paste(patch, (x0, y0), patch)
 
 
 CROP_HANDLE_VISUAL_RADIUS = 7

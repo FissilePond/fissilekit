@@ -29,7 +29,14 @@ FONT_CATALOG: list[tuple[str, dict[str, str]]] = [
 
 DEFAULT_FONT_FAMILY = FONT_CATALOG[0][0]
 DEFAULT_FONT_SIZE = 36.0
+MIN_FONT_SIZE = 24.0
 HANDLE_HIT_RADIUS = 8.0
+TEXT_HANDLE_CURSORS = {
+    "nw": "size_nw_se",
+    "se": "size_nw_se",
+    "ne": "size_ne_sw",
+    "sw": "size_ne_sw",
+}
 
 
 @dataclass
@@ -104,7 +111,7 @@ def _resolve_font_path(family: str, bold: bool, italic: bool) -> Path | None:
 
 
 def load_font(family: str, size: float, bold: bool = False, italic: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    size = max(6, int(round(size)))
+    size = max(int(MIN_FONT_SIZE), int(round(size)))
     path = _resolve_font_path(family, bold, italic)
     if path is not None:
         try:
@@ -117,27 +124,27 @@ def load_font(family: str, size: float, bold: bool = False, italic: bool = False
         return ImageFont.load_default()
 
 
-def tk_font_tuple(obj: TextObject, scale: float = 1.0) -> tuple[str, int, str]:
-    size = max(6, int(round(obj.font_size * scale)))
+def tk_font_tuple(obj: TextObject, scale: float = 1.0) -> tuple:
+    size = max(int(MIN_FONT_SIZE), int(round(obj.font_size * scale)))
     style_parts: list[str] = []
     if obj.bold:
         style_parts.append("bold")
     if obj.italic:
         style_parts.append("italic")
-    style = " ".join(style_parts)
-    if style:
-        return (obj.font_family, size, style)
+    if obj.underline:
+        style_parts.append("underline")
+    if obj.strikethrough:
+        style_parts.append("overstrike")
+    if style_parts:
+        return (obj.font_family, size, " ".join(style_parts))
     return (obj.font_family, size)
 
 
 def measure_text_object(obj: TextObject) -> tuple[float, float, float, float]:
     sample = obj.text if obj.text else "M"
     font = load_font(obj.font_family, obj.font_size, obj.bold, obj.italic)
-    bbox = font.getbbox(sample)
-    left, top, right, bottom = bbox
-    width = max(1.0, right - left)
-    height = max(1.0, bottom - top)
-    return obj.x, obj.y, obj.x + width, obj.y + height
+    left, top, right, bottom = font.getbbox(sample)
+    return obj.x + left, obj.y + top, obj.x + right, obj.y + bottom
 
 
 def copy_text_objects(objects: list[TextObject]) -> list[TextObject]:
@@ -203,11 +210,15 @@ def render_text_object(draw: ImageDraw.ImageDraw, obj: TextObject) -> None:
         fill=fill,
         stroke_width=stroke_w,
         stroke_fill=stroke_fill,
+        anchor="lt",
     )
     bbox = font.getbbox(obj.text)
-    width = max(1.0, bbox[2] - bbox[0])
-    height = max(1.0, bbox[3] - bbox[1])
-    _draw_decorations(draw, obj, obj.x, obj.y, width, height, fill)
+    left, top, right, bottom = bbox
+    abs_x = obj.x + left
+    abs_y = obj.y + top
+    width = max(1.0, right - left)
+    height = max(1.0, bottom - top)
+    _draw_decorations(draw, obj, abs_x, abs_y, width, height, fill)
 
 
 def render_text_layer(
@@ -260,7 +271,7 @@ def scale_text_objects(
     for obj in objects:
         obj.x *= scale_x
         obj.y *= scale_y
-        obj.font_size = max(6.0, obj.font_size * uniform)
+        obj.font_size = max(MIN_FONT_SIZE, obj.font_size * uniform)
 
 
 def flip_text_objects_horizontal(objects: list[TextObject], image_width: int) -> None:

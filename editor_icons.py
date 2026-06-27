@@ -16,7 +16,89 @@ def _icons_dir() -> Path:
         bundled = Path(sys._MEIPASS) / "assets" / "editor_icons"
         if bundled.is_dir():
             return bundled
-    return Path(__file__).resolve().parent / "assets" / "editor_icons"
+    project = Path(__file__).resolve().parent
+    bundled = project / "assets" / "editor_icons"
+    if bundled.is_dir():
+        return bundled
+    return project / "logos para las herramientas"
+
+
+def _parse_hex(color: str) -> tuple[int, int, int]:
+    cleaned = color.lstrip("#")
+    if len(cleaned) == 3:
+        cleaned = "".join(ch * 2 for ch in cleaned)
+    return (
+        int(cleaned[0:2], 16),
+        int(cleaned[2:4], 16),
+        int(cleaned[4:6], 16),
+    )
+
+
+def _tint_icon(icon: Image.Image, color: str) -> Image.Image:
+    icon = icon.convert("RGBA")
+    red, green, blue = _parse_hex(color)
+    _red, _green, _blue, alpha = icon.split()
+    return Image.merge(
+        "RGBA",
+        (
+            Image.new("L", icon.size, red),
+            Image.new("L", icon.size, green),
+            Image.new("L", icon.size, blue),
+            alpha,
+        ),
+    )
+
+
+_PNG_ALIASES = {
+    "pencil": "draw",
+    "bucket": "fill",
+    "eyedropper": "dropper",
+}
+
+_ICON_PADDING = {
+    "shape": 0.05,
+    "text": 0.08,
+    "rotate_left": 0.14,
+    "rotate_right": 0.14,
+    "rotate": 0.08,
+    "eyedropper": 0.08,
+    "bucket": 0.08,
+    "undo": 0.06,
+    "redo": 0.06,
+}
+
+
+def clear_icon_cache() -> None:
+    _ICON_CACHE.clear()
+
+
+def tint_image(icon: Image.Image, color: str) -> Image.Image:
+    return _tint_icon(icon, color)
+
+
+def _trim_icon(icon: Image.Image) -> Image.Image:
+    bbox = icon.getbbox()
+    if bbox:
+        return icon.crop(bbox)
+    return icon
+
+
+def _fit_icon(icon: Image.Image, size: int, padding: float = 0.1) -> Image.Image:
+    icon = _trim_icon(icon.convert("RGBA"))
+    padding = max(0.02, min(0.22, padding))
+    inner = max(8, int(size * (1 - padding * 2)))
+    ratio = min(inner / max(icon.width, 1), inner / max(icon.height, 1))
+    target_w = max(1, int(icon.width * ratio))
+    target_h = max(1, int(icon.height * ratio))
+    render_w = max(target_w * 3, target_w)
+    render_h = max(target_h * 3, target_h)
+    upscaled = icon.resize((render_w, render_h), Image.Resampling.LANCZOS)
+    sharp = upscaled.resize((target_w, target_h), Image.Resampling.LANCZOS)
+    canvas = _blank(size)
+    offset_x = (size - sharp.width) // 2
+    offset_y = (size - sharp.height) // 2
+    canvas.paste(sharp, (offset_x, offset_y), sharp)
+    return canvas
 
 
 def _blank(size: int) -> Image.Image:
@@ -331,14 +413,20 @@ _DRAWERS = {
 }
 
 
-def _load_png(name: str, size: int) -> Image.Image | None:
-    path = _icons_dir() / f"{name}.png"
+def _load_png(name: str, size: int, color: str) -> Image.Image | None:
+    lookup = _PNG_ALIASES.get(name, name)
+    path = _icons_dir() / f"{lookup}.png"
     if not path.is_file():
-        return None
+        legacy = _icons_dir() / f"{name}.png"
+        if legacy.is_file():
+            path = legacy
+        else:
+            return None
     with Image.open(path) as icon:
         icon_rgba = icon.convert("RGBA")
-    icon_rgba.thumbnail((size, size), Image.Resampling.LANCZOS)
-    return icon_rgba
+    padding = _ICON_PADDING.get(name, _ICON_PADDING.get(lookup, 0.1))
+    fitted = _fit_icon(icon_rgba, size, padding=padding)
+    return _tint_icon(fitted, color)
 
 
 def render_icon(name: str, size: int = 22, color: str = "#e6e6e6") -> Image.Image:
@@ -347,7 +435,7 @@ def render_icon(name: str, size: int = 22, color: str = "#e6e6e6") -> Image.Imag
     if cached is not None:
         return cached.copy()
 
-    png = _load_png(name, size)
+    png = _load_png(name, size, color)
     if png is not None:
         _ICON_CACHE[cache_key] = png.copy()
         return png

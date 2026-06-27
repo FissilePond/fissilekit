@@ -24,6 +24,8 @@ import conversion
 import conversion_preview
 import editor
 import editor_ui
+import editor_icons
+import ui_fonts
 
 try:
     import keyboard
@@ -37,6 +39,23 @@ except ImportError:
 
 
 APP_TITLE = "FissileKit"
+APP_USER_MODEL_ID = "FissilePond.FissileKit.1"
+
+
+def _set_windows_app_id() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except (AttributeError, OSError):
+            pass
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except (AttributeError, OSError):
+        pass
 
 
 def _bundle_dir():
@@ -59,6 +78,35 @@ SITE_URL = "https://www.fissilepond.com/"
 DONATION_URL = "https://ko-fi.com/fissilepond"
 BRAND_LOGO_FILE = BUNDLE_DIR / "fissilepondlogo.png"
 DONATION_LOGO_FILE = BUNDLE_DIR / "Fissilepond logo png.png"
+FISSILEKIT_LOGO_FILE = BUNDLE_DIR / "assets" / "fissilekit_logo.svg"
+
+
+def resolve_fissilekit_icon_file() -> Path | None:
+    candidates: list[Path] = []
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.extend(
+            [
+                exe_dir / "fissilekit.ico",
+                exe_dir / "_internal" / "installer" / "fissilekit.ico",
+                Path(sys._MEIPASS) / "installer" / "fissilekit.ico",
+            ]
+        )
+    else:
+        root = Path(__file__).resolve().parent
+        candidates.extend(
+            [
+                root / "installer" / "fissilekit.ico",
+                root / "fissilekit.ico",
+            ]
+        )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+FISSILEKIT_ICON_FILE = resolve_fissilekit_icon_file() or (Path(__file__).resolve().parent / "installer" / "fissilekit.ico")
 DEFAULT_FISSILEKIT_ROOT = Path.home() / "Downloads" / "FissileKit"
 DEFAULT_YOUTUBE_FOLDER = DEFAULT_FISSILEKIT_ROOT / "Videos"
 DEFAULT_IMAGE_FOLDER = DEFAULT_FISSILEKIT_ROOT / "Imagenes"
@@ -71,7 +119,7 @@ PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
 FLICKR_FEED_URL = "https://www.flickr.com/services/feeds/photos_public.gne"
 SEARCH_SOURCES = ("Pexels", "Flickr Public")
 DEFAULT_CAPTURE_HOTKEY = "x"
-DEFAULT_THEME = "light"
+DEFAULT_THEME = "dark"
 DEFAULT_LANGUAGE = "es"
 
 THEME_PALETTES = {
@@ -256,6 +304,9 @@ TRANSLATIONS = {
         "editor_saved": "Guardado: {name}",
         "editor_loaded": "Abierto: {name}",
         "editor_no_image": "Esta herramienta solo funciona con imagenes.",
+        "editor_no_media": "Abre una imagen o un video para usar esta herramienta.",
+        "editor_video_timeline": "{current} / {total} · Fotograma {frame}/{frames}",
+        "editor_resize_video_canvas": "El modo lienzo no esta disponible para video. Usa escala.",
         "editor_invalid_size": "Tamano invalido. Usa numeros enteros.",
         "section_ready_editor": "Abre un archivo o elige uno del historial.",
         "editor_tool_exit": "Salir",
@@ -333,7 +384,7 @@ TRANSLATIONS = {
         "editor_shape_hint_circle": "Arrastra desde el centro; clic sin arrastrar para circulo perfecto.",
         "editor_shape_hint_polygon": "Arrastra desde el centro; el radio crece hacia afuera.",
         "editor_shape_hint": "Arrastra para dibujar un rectangulo.",
-        "editor_text_hint": "Clic para escribir; doble clic para editar; arrastra para mover; esquinas para escalar.",
+        "editor_text_hint": "Clic para escribir; doble clic para editar. Tras escribir, un clic deselecciona; otro crea texto nuevo.",
         "editor_text_font": "Fuente",
         "editor_text_size": "Tamano",
         "editor_text_color": "Color de texto",
@@ -577,6 +628,9 @@ TRANSLATIONS = {
         "editor_saved": "Saved: {name}",
         "editor_loaded": "Opened: {name}",
         "editor_no_image": "This tool only works with images.",
+        "editor_no_media": "Open an image or video to use this tool.",
+        "editor_video_timeline": "{current} / {total} · Frame {frame}/{frames}",
+        "editor_resize_video_canvas": "Canvas mode is not available for video. Use scale.",
         "editor_invalid_size": "Invalid size. Use whole numbers.",
         "section_ready_editor": "Open a file or pick one from history.",
         "editor_tool_exit": "Exit",
@@ -654,7 +708,7 @@ TRANSLATIONS = {
         "editor_shape_hint_circle": "Drag from center; click without dragging for a perfect circle.",
         "editor_shape_hint_polygon": "Drag from center; radius grows outward.",
         "editor_shape_hint": "Drag to draw a rectangle.",
-        "editor_text_hint": "Click to type; double-click to edit; drag to move; corners to scale.",
+        "editor_text_hint": "Click to type; double-click to edit. After typing, one click deselects; another creates new text.",
         "editor_text_font": "Font",
         "editor_text_size": "Size",
         "editor_text_color": "Text color",
@@ -815,11 +869,11 @@ WIN_HEADER_BUTTON = THEME_PALETTES[DEFAULT_THEME]["header_button"]
 WIN_HEADER_BUTTON_ACTIVE = THEME_PALETTES[DEFAULT_THEME]["header_button_active"]
 WIN_FOCUS = THEME_PALETTES[DEFAULT_THEME]["focus"]
 
-FONT_NORMAL = ("Segoe UI", 10)
-FONT_BOLD = ("Segoe UI", 10, "bold")
-FONT_TITLE = ("Segoe UI", 12)
-FONT_SMALL = ("Segoe UI", 9)
-FONT_CAPTION = ("Segoe UI", 8)
+FONT_NORMAL = ("Calibri", 10)
+FONT_BOLD = ("Calibri", 10, "bold")
+FONT_TITLE = ("Calibri", 12, "bold")
+FONT_SMALL = ("Calibri", 9)
+FONT_CAPTION = ("Calibri", 8)
 
 VIDEO_QUALITY_KEYS = [
     ("quality_best", "best"),
@@ -950,9 +1004,29 @@ def guess_image_extension(url, content_type):
     return guessed or ".jpg"
 
 
+def _apply_ui_fonts(root, target):
+    fonts = ui_fonts.configure_ui_fonts(root)
+    target.ui_font_family = fonts["family"]
+    target.FONT_NORMAL = fonts["normal"]
+    target.FONT_BOLD = fonts["bold"]
+    target.FONT_TITLE = fonts["title"]
+    target.FONT_SMALL = fonts["small"]
+    target.FONT_CAPTION = fonts["caption"]
+    target.FONT_SECTION = fonts["section"]
+    target.FONT_HERO = fonts["hero"]
+    global FONT_NORMAL, FONT_BOLD, FONT_TITLE, FONT_SMALL, FONT_CAPTION
+    FONT_NORMAL = fonts["normal"]
+    FONT_BOLD = fonts["bold"]
+    FONT_TITLE = fonts["title"]
+    FONT_SMALL = fonts["small"]
+    FONT_CAPTION = fonts["caption"]
+
+
 class DownloaderApp(tk.Tk):
     def __init__(self):
+        _set_windows_app_id()
         super().__init__()
+        _apply_ui_fonts(self, self)
 
         self.settings = self._load_settings()
         saved_theme = self._setting("ui_theme", DEFAULT_THEME)
@@ -966,8 +1040,11 @@ class DownloaderApp(tk.Tk):
         self.theme_var = tk.StringVar(value=saved_theme)
         self.language_var = tk.StringVar(value=saved_language)
         self._apply_theme_palette(saved_theme)
+        editor_ui.apply_editor_theme(saved_theme)
 
         self.title(self._app_title())
+        self.ui_photo_refs = []
+        self._apply_window_icon()
         self.geometry("1080x740")
         self.minsize(860, 600)
         self.configure(bg=WIN_DESKTOP)
@@ -1053,7 +1130,6 @@ class DownloaderApp(tk.Tk):
         self.capture_hotkey_handle = None
         self.capture_hotkey_kind = None
         self.is_closing = False
-        self.ui_photo_refs = []
 
         self._build_ui()
         self._update_quality_options("Video")
@@ -1084,14 +1160,22 @@ class DownloaderApp(tk.Tk):
         title_bar.grid_columnconfigure(1, weight=1)
         title_bar.grid_propagate(False)
 
-        tk.Label(
-            title_bar,
-            text="FK",
-            bg=WIN_BLUE,
-            fg=WIN_TITLE_TEXT,
-            font=("Segoe UI", 9, "bold"),
-            width=3,
-        ).grid(row=0, column=0, padx=(12, 8), pady=8)
+        title_logo = self._load_badge_photo(FISSILEKIT_LOGO_FILE, (32, 32))
+        if title_logo is not None:
+            tk.Label(
+                title_bar,
+                image=title_logo,
+                bg=WIN_BLUE,
+            ).grid(row=0, column=0, padx=(10, 6), pady=6)
+        else:
+            tk.Label(
+                title_bar,
+                text="FK",
+                bg=WIN_BLUE,
+                fg=WIN_TITLE_TEXT,
+                font=FONT_BOLD,
+                width=3,
+            ).grid(row=0, column=0, padx=(12, 8), pady=8)
 
         tk.Label(
             title_bar,
@@ -1538,18 +1622,80 @@ class DownloaderApp(tk.Tk):
 
         parent.bind("<Configure>", refresh, add="+")
 
-    def _load_badge_photo(self, path, max_size):
+    def _apply_window_icon(self):
+        icon_path = resolve_fissilekit_icon_file()
+        if icon_path is None or not icon_path.is_file():
+            return
+        icon_text = str(icon_path.resolve())
+        try:
+            self.iconbitmap(default=icon_text)
+        except tk.TclError:
+            pass
+        if FISSILEKIT_LOGO_FILE.is_file():
+            try:
+                icon_image = conversion_preview.load_raster_image(
+                    FISSILEKIT_LOGO_FILE,
+                    output_size=(256, 256),
+                    supersample=4,
+                )
+                if icon_image is not None:
+                    photo = ImageTk.PhotoImage(icon_image)
+                    self.iconphoto(True, photo)
+                    self.ui_photo_refs.append(photo)
+            except OSError:
+                pass
+        if sys.platform == "win32":
+            self.after(80, lambda p=icon_text: self._set_windows_hwnd_icon(p))
+
+    def _load_badge_photo(self, path, max_size, tint_hex=None):
         if not path.exists():
             return None
         try:
-            with Image.open(path) as image:
-                badge = image.convert("RGBA")
-                badge.thumbnail(max_size)
-                photo = ImageTk.PhotoImage(badge)
-                self.ui_photo_refs.append(photo)
-                return photo
+            if isinstance(max_size, tuple):
+                output_size = max_size
+            else:
+                output_size = (int(max_size), int(max_size))
+            badge = conversion_preview.load_raster_image(
+                path,
+                output_size=output_size,
+                supersample=4,
+            )
+            if badge is None:
+                return None
+            if tint_hex:
+                badge = editor_icons.tint_image(badge, tint_hex)
+            photo = ImageTk.PhotoImage(badge)
+            self.ui_photo_refs.append(photo)
+            return photo
         except OSError:
             return None
+
+    def _set_windows_hwnd_icon(self, icon_path: str) -> None:
+        if sys.platform != "win32":
+            return
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            if not hwnd:
+                hwnd = self.winfo_id()
+            load_image = ctypes.windll.user32.LoadImageW
+            load_image.argtypes = [
+                wintypes.HINSTANCE,
+                wintypes.LPCWSTR,
+                ctypes.c_uint,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_uint,
+            ]
+            load_image.restype = wintypes.HANDLE
+            image_icon = 1
+            wm_seticon = 0x0080
+            lr_loadfromfile = 0x00000010
+            for icon_type in (0, 1):
+                handle = load_image(None, icon_path, image_icon, 0, 0, lr_loadfromfile)
+                if handle:
+                    ctypes.windll.user32.SendMessageW(hwnd, wm_seticon, icon_type, handle)
+        except (AttributeError, OSError, tk.TclError):
+            pass
 
     def _open_external_url(self, url):
         webbrowser.open(url)
@@ -2423,8 +2569,8 @@ class DownloaderApp(tk.Tk):
         frame.grid_rowconfigure(1, weight=1)
 
         card_height = 300
-        card_font_title = ("Segoe UI", 12, "bold")
-        flow_arrow_font = ("Segoe UI", 30)
+        card_font_title = self.FONT_TITLE
+        flow_arrow_font = ui_fonts.font_tuple(self.ui_font_family, 30)
 
         flow = tk.Frame(frame, bg=WIN_FACE)
         flow.grid(row=0, column=0, sticky="ew", padx=28, pady=(24, 16))
@@ -2645,7 +2791,7 @@ class DownloaderApp(tk.Tk):
             text=self._t("conversion_target_question"),
             bg=WIN_FACE,
             fg=WIN_BLACK,
-            font=("Segoe UI", 11),
+            font=self.FONT_SECTION,
             anchor="center",
         ).pack(fill="x", pady=(4, 14))
 
@@ -3817,6 +3963,8 @@ class DownloaderApp(tk.Tk):
         selected_theme = self.theme_var.get()
         self._set_setting("ui_theme", selected_theme)
         self._apply_theme_palette(selected_theme)
+        editor_icons.clear_icon_cache()
+        editor_ui.apply_editor_theme(selected_theme)
         self._rebuild_ui()
         self.status_var.set(self._t("theme_changed_status"))
         self._log(self._t("theme_changed_log", theme=self._theme_label(selected_theme)))
@@ -5544,6 +5692,7 @@ class DownloaderApp(tk.Tk):
 
 
 if __name__ == "__main__":
+    _set_windows_app_id()
     DEFAULT_FISSILEKIT_ROOT.mkdir(parents=True, exist_ok=True)
     DEFAULT_YOUTUBE_FOLDER.mkdir(parents=True, exist_ok=True)
     DEFAULT_IMAGE_FOLDER.mkdir(parents=True, exist_ok=True)

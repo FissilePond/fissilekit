@@ -16,5 +16,7 @@ dist/
 
 # PyInstaller
 
+third_party/ffmpeg/
+
 # Local config (may contain Pexels API key)
 settings.json

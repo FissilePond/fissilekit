@@ -10,8 +10,19 @@ echo [FissileKit] Instalando PyInstaller...
 py -m pip install pyinstaller
 if errorlevel 1 goto :error
 
+echo [FissileKit] Generando icono desde logo SVG...
+py generate_logo_assets.py
+if errorlevel 1 goto :error
+
+echo [FissileKit] Preparando FFmpeg embebido...
+py ensure_ffmpeg.py
+if errorlevel 1 goto :error
+
 echo [FissileKit] Compilando ejecutable (carpeta dist\FissileKit)...
 py -m PyInstaller fissilekit.spec --noconfirm --clean
+if errorlevel 1 goto :error
+
+copy /Y "installer\fissilekit.ico" "dist\FissileKit\fissilekit.ico" >nul
 if errorlevel 1 goto :error
 
 echo.
